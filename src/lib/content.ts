@@ -25,6 +25,7 @@ export interface LayerIndexEntry {
   sizeBytes: number;
   chunks: number;
   version: number; // давхарга бүрийн өөрийн хувилбар
+  props?: Record<string, unknown>; // ActiveGisLayer-ийн геометрээс бусад талбарууд (өнгө, нэрийн талбар г.м)
 }
 
 const VERSIONS_REF = () => doc(db, 'app_settings', 'content');
@@ -103,7 +104,7 @@ export async function loadLayerData(entry: LayerIndexEntry, kv: KV = defaultKV()
 
 export async function saveLayer(
   id: string,
-  meta: { name: string; category?: string; kind: LayerIndexEntry['kind']; bbox: LayerIndexEntry['bbox'] },
+  meta: { name: string; category?: string; kind: LayerIndexEntry['kind']; bbox: LayerIndexEntry['bbox']; props?: Record<string, unknown> },
   fc: FeatureCollection,
 ): Promise<LayerIndexEntry> {
   const json = JSON.stringify(fc);

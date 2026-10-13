@@ -7,6 +7,10 @@ service cloud.firestore {
       return signedIn() &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    function isConfirmed() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isCompetitionConfirmed == true;
+    }
 
     // Админуудыг зөвхөн Console дээрээс гараар нэмнэ
     match /admins/{uid} {
@@ -18,22 +22,25 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
 
-      // Бүртгүүлэхдээ: өөрийн uid, сурагчийн эрх, админ тохируулдаг талбарууд хаалттай
-      allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.role == 'student'
+      // Бүртгүүлэхдээ: өөрийн uid, сурагч/багшийн эрх, баталгаажаагүй төлөвтэй
+      allow create: if isAdmin() || (signedIn() && request.auth.uid == uid
+        && request.resource.data.role in ['student', 'teacher']
         && request.resource.data.status == 'pending'
         && request.resource.data.isCompetitionConfirmed == false
-        && request.resource.data.mapAndChallengeAccess == false;
+        && request.resource.data.mapAndChallengeAccess == true);
 
-      // Сурагч зөвхөн өөрийн хувийн мэдээллийг засна. role/status/эрхийн талбарыг ӨӨРЧЛӨХ БОЛОМЖГҮЙ
+      // Өөрийн хувийн мэдээллийг л засна. status, баталгаажуулалт, эрх, багийн талбарууд хаалттай.
+      // (Админы эрхийг users.role биш, admins/{uid} тодорхойлдог)
       allow update: if isAdmin() || (signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['fullName', 'phone', 'school', 'aimag', 'soum', 'grade', 'category']));
+             .hasOnly(['fullName', 'phone', 'school', 'organization', 'aimag', 'soum', 'grade', 'position', 'notes', 'role'])
+        && request.resource.data.role in ['student', 'teacher']
+        && resource.data.role in ['student', 'teacher']);
 
       allow delete: if isAdmin();
     }
 
-    // Давхаргын индекс ба геометр: нэвтэрсэн хэрэглэгч уншина, админ бичнэ
+    // Давхаргын индекс ба геометр
     match /gisLayers/{id} {
       allow read: if signedIn();
       allow write: if isAdmin();
@@ -49,32 +56,34 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Оролдлого: өөрийн нэрээр л үүсгэнэ, засах/устгах нь админ
+    // Оролдлого: зөвхөн баталгаажсан оролцогч өөрийн нэрээр үүсгэнэ. Засах/устгах нь админ
     match /attempts/{id} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid && isConfirmed());
       allow update, delete: if isAdmin();
     }
 
+    // Баг: админ зохион байгуулна
     match /teams/{id} {
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
+    // Хандив: өөрийнхөө хандивыг л харна, админ бүгдийг
     match /donations/{id} {
-      allow create: if signedIn();
-      allow read, update, delete: if isAdmin();
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     match /questionReports/{id} {
-      allow create: if signedIn();
+      allow create: if signedIn() && request.resource.data.status == 'pending';
       allow read, update, delete: if isAdmin();
     }
 
-    // Хувилбарын дугаар, цагийн хуваарь: хэн ч уншина (нэвтрэхээс өмнө ч), админ бичнэ
+    // Хувилбар, цагийн хуваарь, гэрчилгээний тохиргоо: хэн ч уншина, админ бичнэ
     match /app_settings/{id} { allow read: if true; allow write: if isAdmin(); }
-    match /schedule/{id}     { allow read: if true; allow write: if isAdmin(); }
 
     match /{document=**} { allow read, write: if false; }
   }
