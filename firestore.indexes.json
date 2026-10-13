@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "attempts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "grade", "order": "ASCENDING" },
+        { "fieldPath": "totalScore", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

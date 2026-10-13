@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Админуудыг зөвхөн Console дээрээс гараар нэмнэ
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Хэрэглэгч
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Бүртгүүлэхдээ: өөрийн uid, сурагчийн эрх, админ тохируулдаг талбарууд хаалттай
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role == 'student'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.isCompetitionConfirmed == false
+        && request.resource.data.mapAndChallengeAccess == false;
+
+      // Сурагч зөвхөн өөрийн хувийн мэдээллийг засна. role/status/эрхийн талбарыг ӨӨРЧЛӨХ БОЛОМЖГҮЙ
+      allow update: if isAdmin() || (signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['fullName', 'phone', 'school', 'aimag', 'soum', 'grade', 'category']));
+
+      allow delete: if isAdmin();
+    }
+
+    // Давхаргын индекс ба геометр: нэвтэрсэн хэрэглэгч уншина, админ бичнэ
+    match /gisLayers/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /gisLayerData/{id}/chunks/{n} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Асуултын багцууд
+    match /questionPacks/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Оролдлого: өөрийн нэрээр л үүсгэнэ, засах/устгах нь админ
+    match /attempts/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /teams/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /donations/{id} {
+      allow create: if signedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /questionReports/{id} {
+      allow create: if signedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Хувилбарын дугаар, цагийн хуваарь: хэн ч уншина (нэвтрэхээс өмнө ч), админ бичнэ
+    match /app_settings/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /schedule/{id}     { allow read: if true; allow write: if isAdmin(); }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
