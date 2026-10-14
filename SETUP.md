@@ -5,10 +5,10 @@
 2. Console → Firestore → **Indexes** → `firestore.indexes.json`-д заасан composite index үүсгэх
    (attempts: grade ↑ + totalScore ↓). Эсвэл шилдэгүүдийг нээхэд консол дээр гарах холбоосоор үүсгэнэ.
 3. Authentication → Sign-in method → **Email/Password** идэвхтэй, **Anonymous** идэвхгүй.
-4. Authentication → Settings → **Authorized domains** → `map-edu-orkhon.pages.dev` нэмэх.
+4. Authentication → Settings → **Authorized domains** → сайтын **яг хаягийг** (Cloudflare dashboard → төслийн нүүр дээрх URL: `...workers.dev` эсвэл `...pages.dev`) нэмэх.
 5. Админ: Authentication → Users → өөрийн хэрэглэгч → UID → Firestore `admins/<UID>` баримт (`role: "admin"`).
 
-## 2. Cloudflare Pages → Settings → Variables and Secrets
+## 2. Cloudflare → Settings → Variables (Build variables)
 | Нэр | Төрөл | Утга |
 |---|---|---|
 | VITE_FIREBASE_API_KEY | Text | (Firebase config-ийн apiKey) |
@@ -17,7 +17,9 @@
 | VITE_FIREBASE_APP_ID | Text | (Firebase config-ийн appId) |
 | NODE_VERSION | Text | 22 |
 
-Build command: `npm run build`, output: `dist`. Variables өөрчилсний дараа дахин deploy хийнэ.
+Build command: `npm run build`. Deploy command: `npx wrangler deploy` (анхдагч). Тохиргоо нь `wrangler.jsonc`-д:
+static файлууд `dist`-ээс, SPA чиглүүлэлт (`not_found_handling: single-page-application`) автомат. `_redirects` файл ХЭРЭГГҮЙ.
+Хувьсагч өөрчилсний дараа дахин deploy хийнэ. `VITE_*` хувьсагч нь **Build** хувьсагч байх ёстой (Runtime биш).
 
 ## 3. Туршилт
 - `npm install && npm test` (давхарга боловсруулалт, cache/багцлалт, асуулт үүсгэгчийн тест)
