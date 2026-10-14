@@ -7,9 +7,15 @@ service cloud.firestore {
       return signedIn() &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
     function isConfirmed() {
-      return signedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isCompetitionConfirmed == true;
+      return signedIn() && me().isCompetitionConfirmed == true;
+    }
+    // Уралдааны ангилал: өөрийн анги/багш, эсвэл админ бүрдүүлсэн багт харьяалагддаг бол "team"
+    function validCategory(g) {
+      return g == me().grade || (g == 'team' && 'teamId' in me() && me().teamId != null);
     }
 
     // Админуудыг зөвхөн Console дээрээс гараар нэмнэ
@@ -29,13 +35,11 @@ service cloud.firestore {
         && request.resource.data.isCompetitionConfirmed == false
         && request.resource.data.mapAndChallengeAccess == true);
 
-      // Өөрийн хувийн мэдээллийг л засна. status, баталгаажуулалт, эрх, багийн талбарууд хаалттай.
-      // (Админы эрхийг users.role биш, admins/{uid} тодорхойлдог)
+      // Өөрийн хувийн мэдээллийг л засна. Ангилал (grade), status, баталгаажуулалт, эрх, багийн талбарууд хаалттай:
+      // уралдаан ангиллаар явагддаг тул ангиллыг зөвхөн админ өөрчилнө.
       allow update: if isAdmin() || (signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['fullName', 'phone', 'school', 'organization', 'aimag', 'soum', 'grade', 'position', 'notes', 'role'])
-        && request.resource.data.role in ['student', 'teacher']
-        && resource.data.role in ['student', 'teacher']);
+             .hasOnly(['fullName', 'phone', 'school', 'organization', 'aimag', 'soum', 'position', 'notes']));
 
       allow delete: if isAdmin();
     }
@@ -59,7 +63,8 @@ service cloud.firestore {
     // Оролдлого: зөвхөн баталгаажсан оролцогч өөрийн нэрээр үүсгэнэ. Засах/устгах нь админ
     match /attempts/{id} {
       allow read: if signedIn();
-      allow create: if isAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid && isConfirmed());
+      allow create: if isAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid
+        && isConfirmed() && validCategory(request.resource.data.grade));
       allow update, delete: if isAdmin();
     }
 

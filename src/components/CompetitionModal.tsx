@@ -46,7 +46,17 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
     competitionSchedule,
   } = useApp();
 
-  const [selectedGrade, setSelectedGrade] = useState<GradeLevel>(overrideGrade || currentUser?.grade || '9');
+  // Ангилал: хэрэглэгч зөвхөн өөрийн ангилалд (9, 12, багш) оролцоно.
+  // "Баг" ангилал зөвхөн админ баг бүрдүүлсэн (teamId-тэй) хэрэглэгчид нээгдэнэ.
+  const allowedGrades: GradeLevel[] = !currentUser
+    ? []
+    : currentUser.role === 'admin'
+    ? ['9', '12', 'teacher', 'team']
+    : ([currentUser.grade, ...(currentUser.teamId ? ['team'] : [])] as GradeLevel[]);
+  const pickGrade = (g?: GradeLevel): GradeLevel =>
+    g && allowedGrades.includes(g) ? g : allowedGrades[0] || '9';
+
+  const [selectedGrade, setSelectedGrade] = useState<GradeLevel>(pickGrade(overrideGrade));
   const [teamNameInput, setTeamNameInput] = useState<string>(currentUser?.teamName || 'Шонхор баг');
   const [teamMembersInput, setTeamMembersInput] = useState<string>(currentUser?.teamMembers || '3 гишүүн');
 
@@ -67,16 +77,18 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
   // Sync overrideGrade when prop changes
   useEffect(() => {
     if (overrideGrade) {
-      setSelectedGrade(overrideGrade);
+      setSelectedGrade(pickGrade(overrideGrade));
     }
-  }, [overrideGrade]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overrideGrade, currentUser?.id, currentUser?.teamId]);
 
   // Start / restart quiz from Admin's customQuestions (matching grade, or full pool fallback)
   const startQuiz = (gradeToUse: GradeLevel = selectedGrade) => {
     const matchingCustom = customQuestions.filter(
       (q) => !q.gradeLevels || q.gradeLevels.includes(gradeToUse)
     );
-    const pool = matchingCustom.length > 0 ? matchingCustom : customQuestions;
+    // Зөвхөн тухайн ангилалд зориулсан даалгавар. Өөр ангиллын даалгаврыг орлуулж өгөхгүй.
+    const pool = matchingCustom;
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
     const selectedQuestions = shuffled.slice(0, Math.min(10, shuffled.length));
 
@@ -485,9 +497,9 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
 
           <div className="flex items-center gap-3 self-end sm:self-auto">
             {/* 4 Category Switcher Pills */}
-            {!isCompleted && (
+            {!isCompleted && allowedGrades.length > 1 && (
               <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
-                {(['9', '12', 'teacher', 'team'] as GradeLevel[]).map((grade) => (
+                {allowedGrades.map((grade) => (
                   <button
                     key={grade}
                     onClick={() => {
@@ -539,6 +551,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
                 type="text"
                 value={teamNameInput}
                 onChange={(e) => setTeamNameInput(e.target.value)}
+                readOnly={currentUser?.role !== 'admin'}
                 placeholder="Багийн нэр бичих..."
                 className="rounded-md border border-emerald-300 bg-white px-2 py-0.5 font-semibold text-emerald-900 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
@@ -549,6 +562,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
                 type="text"
                 value={teamMembersInput}
                 onChange={(e) => setTeamMembersInput(e.target.value)}
+                readOnly={currentUser?.role !== 'admin'}
                 placeholder="3-5 сурагчийн нэр..."
                 className="rounded-md border border-emerald-300 bg-white px-2 py-0.5 text-xs text-slate-800 focus:outline-none"
               />

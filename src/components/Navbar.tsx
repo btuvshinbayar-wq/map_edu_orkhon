@@ -239,8 +239,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, onOpenDonation, onOp
                       ? '(Админ)'
                       : currentUser.grade === 'teacher'
                       ? '(Багш)'
-                      : currentUser.grade === 'team'
-                      ? `(${currentUser.teamName || 'Баг'})`
                       : `(${currentUser.grade}-р анги)`}
                   </span>
                   <ChevronDown className="h-3 w-3 text-slate-400" />

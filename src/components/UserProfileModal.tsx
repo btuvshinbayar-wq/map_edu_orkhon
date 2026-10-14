@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AIMAGS_DATA } from '../data/aimags';
-import { GradeLevel, User } from '../types';
+import { StudentGradeLevel, User } from '../types';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -33,9 +33,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const { currentUser, updateUserProfile } = useApp();
 
   const editingUser = targetUser || currentUser;
+  const canEditCategory = currentUser?.role === 'admin';
 
   const [fullName, setFullName] = useState('');
-  const [grade, setGrade] = useState<GradeLevel>('9');
+  const [grade, setGrade] = useState<StudentGradeLevel>('9');
   const [school, setSchool] = useState('');
   const [aimag, setAimag] = useState(AIMAGS_DATA[0].name);
   const [soum, setSoum] = useState('');
@@ -217,15 +218,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: '9' as GradeLevel, label: '9-р анги', icon: '🎒' },
-                  { id: '12' as GradeLevel, label: '12-р анги', icon: '🎓' },
-                  { id: 'teacher' as GradeLevel, label: 'Багш', icon: '👨‍🏫' },
+                  { id: '9' as StudentGradeLevel, label: '9-р анги', icon: '🎒' },
+                  { id: '12' as StudentGradeLevel, label: '12-р анги', icon: '🎓' },
+                  { id: 'teacher' as StudentGradeLevel, label: 'Багш', icon: '👨‍🏫' },
                 ].map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setGrade(item.id)}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    disabled={!canEditCategory}
+                    onClick={() => canEditCategory && setGrade(item.id)}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-center transition-all ${canEditCategory ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'} ${
                       grade === item.id
                         ? 'border-amber-500 bg-amber-50 text-slate-950 font-bold ring-1 ring-amber-400 shadow-xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
@@ -236,6 +238,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </button>
                 ))}
               </div>
+              {!canEditCategory && (
+                <p className="mt-1.5 text-[10px] text-slate-500">
+                  Ангиллыг бүртгүүлсний дараа зөвхөн админ өөрчилнө (уралдаан ангиллаар явагддаг).
+                </p>
+              )}
             </div>
           )}
 

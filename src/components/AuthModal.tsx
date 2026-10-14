@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, CheckCircle2, AlertCircle, UserCheck, Users, UserCog } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AIMAGS_DATA } from '../data/aimags';
-import { GradeLevel } from '../types';
+import { StudentGradeLevel } from '../types';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -18,7 +18,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenPro
 
   // Form State
   const [fullName, setFullName] = useState('');
-  const [grade, setGrade] = useState<GradeLevel>('9');
+  const [grade, setGrade] = useState<StudentGradeLevel>('9');
   const [aimag, setAimag] = useState(AIMAGS_DATA[0].name);
   const [soum, setSoum] = useState('');
   const [school, setSchool] = useState('');
@@ -219,9 +219,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenPro
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: '9' as GradeLevel, label: '9-р анги', icon: '🎒' },
-                  { id: '12' as GradeLevel, label: '12-р анги', icon: '🎓' },
-                  { id: 'teacher' as GradeLevel, label: 'Багш', icon: '👨‍🏫' },
+                  { id: '9' as StudentGradeLevel, label: '9-р анги', icon: '🎒' },
+                  { id: '12' as StudentGradeLevel, label: '12-р анги', icon: '🎓' },
+                  { id: 'teacher' as StudentGradeLevel, label: 'Багш', icon: '👨‍🏫' },
                 ].map((item) => (
                   <button
                     key={item.id}

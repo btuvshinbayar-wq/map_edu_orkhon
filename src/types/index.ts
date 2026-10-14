@@ -1,4 +1,7 @@
 export type GradeLevel = '9' | '12' | 'teacher' | 'team';
+/** Хэрэглэгчийн (бүртгэлийн) ангилал: зөвхөн 9, 12-р анги, багш. */
+export type StudentGradeLevel = '9' | '12' | 'teacher';
+/** Уралдааны ангилал: дээрхээс гадна "баг" нь ЗӨВХӨН уралдаанд оролцоно (админ баг бүрдүүлнэ). */
 export type CompetitionGradeLevel = '9' | '12' | 'teacher' | 'team';
 export type UserRole = 'student' | 'teacher' | 'admin';
 export type VerificationStatus = 'approved' | 'pending' | 'rejected';
@@ -31,7 +34,7 @@ export interface User {
   school: string;
   aimag: string;
   soum: string;
-  grade: GradeLevel;
+  grade: StudentGradeLevel;
   studentCode: string; // РД or Student Code
   password?: string; // Нууц үг
   teamId?: string; // Харьяалагдах багийн ID

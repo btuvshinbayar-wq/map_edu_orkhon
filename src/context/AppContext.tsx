@@ -5,7 +5,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import {
-  User, CompetitionAttempt, GradeLevel, MainMenuTab, MapSubTab, ActiveGisLayer, Question,
+  User, CompetitionAttempt, StudentGradeLevel, MainMenuTab, MapSubTab, ActiveGisLayer, Question,
   LayerUsageStat, TaskPerformanceStat, CertificateConfig, CompetitionScheduleConfig,
   CompetitionTeam, DonationRecord, QuestionIssueReport,
 } from '../types';
@@ -63,7 +63,7 @@ interface AppContextType {
     email?: string; phone?: string; aimag?: string; soum?: string;
   }) => void;
   updateUserProfile: (updates: {
-    userId?: string; fullName: string; school: string; aimag: string; soum?: string; grade?: GradeLevel;
+    userId?: string; fullName: string; school: string; aimag: string; soum?: string; grade?: StudentGradeLevel;
     phone?: string; email?: string; position?: string; password?: string;
   }) => Promise<Result>;
   gisLayers: ActiveGisLayer[];
@@ -417,7 +417,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = users.find((x) => x.id === targetId) || (currentUser?.id === targetId ? currentUser : null);
     if (!target) return { success: false, message: 'Хэрэглэгч олдсонгүй. Эхлээд системд нэвтэрнэ үү.' };
     if (!u.fullName.trim() || !u.school.trim()) return { success: false, message: 'Овог нэр болон сургууль/байгууллагын нэрээ заавал бөглөнө үү.' };
-    const grade = u.grade || target.grade;
+    // Ангиллыг зөвхөн админ өөрчилнө (уралдаан ангиллаар явагддаг)
+    const grade = isAdmin ? u.grade || target.grade : target.grade;
     const next: User = {
       ...target, fullName: u.fullName.trim(), school: u.school.trim(), organization: u.school.trim(),
       aimag: u.aimag.trim() || target.aimag, soum: u.soum !== undefined ? u.soum.trim() || 'Төв' : target.soum,
@@ -580,7 +581,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await saveTeamDoc(t);
       setTeams((p) => [t, ...p]);
-      patchUsers([t.leaderUserId, ...(t.memberUserIds || [])], (u) => ({ ...u, teamId: t.id, teamName: t.name, isCompetitionConfirmed: true }));
+      const ids = [t.leaderUserId, ...(t.memberUserIds || [])];
+      const names = ids.map((id) => users.find((u) => u.id === id)?.fullName).filter(Boolean).join(', ');
+      patchUsers(ids, (u) => ({ ...u, teamId: t.id, teamName: t.name, teamMembers: names, isCompetitionConfirmed: true }));
       sound.playSuccess();
       return true;
     } catch (e) { console.warn(e); return false; }
@@ -590,7 +593,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const deleteTeam: AppContextType['deleteTeam'] = async (id) => {
     setTeams((p) => p.filter((t) => t.id !== id));
-    patchUsers(users.filter((u) => u.teamId === id).map((u) => u.id), (u) => ({ ...u, teamId: undefined, teamName: undefined }));
+    patchUsers(users.filter((u) => u.teamId === id).map((u) => u.id), (u) => ({ ...u, teamId: undefined, teamName: undefined, teamMembers: undefined }));
     try { await removeTeam(id); return true; } catch { return false; }
   };
 
