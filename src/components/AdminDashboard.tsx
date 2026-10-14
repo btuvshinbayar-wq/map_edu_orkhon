@@ -47,7 +47,6 @@ import {
   Flag,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { QuestionBankView } from './QuestionBankView';
 import {
   User,
   GradeLevel,
@@ -231,7 +230,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
   };
 
   const [activeTab, setActiveTab] = useState<
-    'verifications' | 'teams' | 'donations' | 'attempts' | 'questions' | 'gis_layers' | 'analytics' | 'ai_bank'
+    'verifications' | 'teams' | 'donations' | 'attempts' | 'questions' | 'gis_layers' | 'analytics'
   >('verifications');
 
   const [analyticsLayerFilter, setAnalyticsLayerFilter] = useState<string>('all');
@@ -1060,16 +1059,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
           <span>📊 Газрын зураг & Сорилын гүйцэтгэл</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('ai_bank')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 transition-colors cursor-pointer ${
-            activeTab === 'ai_bank'
-              ? 'border-amber-600 text-amber-700 font-bold bg-amber-50/60'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>🤖 Даалгаврын сан (AI)</span>
-        </button>
 
       </div>
 
@@ -3756,8 +3745,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
             </div>
           );
         })()}
-
-      {activeTab === 'ai_bank' && <QuestionBankView />}
 
       {/* User Profile Editor Modal for Admin */}
       <UserProfileModal

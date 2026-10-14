@@ -58,14 +58,13 @@ interface AppContextType {
   batchDeleteAttempts: (attemptIds: string[]) => void;
   setActiveTab: (tab: TabId) => void;
   toggleMute: () => void;
-  updateUserApiKey: (apiKey: string) => void;
   updateAdminProfile: (updates: {
     fullName: string; organization: string; position: string;
     email?: string; phone?: string; aimag?: string; soum?: string;
   }) => void;
   updateUserProfile: (updates: {
     userId?: string; fullName: string; school: string; aimag: string; soum?: string; grade?: GradeLevel;
-    phone?: string; email?: string; position?: string; password?: string; userApiKey?: string;
+    phone?: string; email?: string; position?: string; password?: string;
   }) => Promise<Result>;
   gisLayers: ActiveGisLayer[];
   setGisLayers: React.Dispatch<React.SetStateAction<ActiveGisLayer[]>>;
@@ -116,7 +115,6 @@ interface AppContextType {
 }
 
 // Зөвхөн энэ төхөөрөмж дээр хадгалагдах (DB-д очихгүй) түлхүүрүүд
-const LS_API_KEY = 'geo_user_gemini_key_v1';
 const LS_LAYER_STATS = 'geo_layer_usage_stats_v2';
 const LS_TASK_STATS = 'geo_task_perf_stats_v2';
 
@@ -263,7 +261,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [adminSnap, profile] = await Promise.all([getDoc(doc(db, 'admins', uid)), getUserDoc(uid)]);
     const admin = adminSnap.exists();
     setIsAdmin(admin);
-    const apiKey = readLS<string>(LS_API_KEY, '');
     let me: User | null = profile;
     if (!me && admin) {
       me = {
@@ -273,7 +270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } as User;
     }
     if (me && admin) me = { ...me, role: 'admin', status: 'approved' }; // эрхийг admins/{uid}-аас л тодорхойлно
-    setCurrentUser(me ? { ...me, userApiKey: apiKey || undefined } : null);
+    setCurrentUser(me);
     return { admin, me };
   }, []);
 
@@ -334,13 +331,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!data.password) return { success: false, message: 'Нууц үгээ оруулна уу.' };
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, data.password);
-      const { password: _pw, userApiKey, ...rest } = data;
+      const { password: _pw, ...rest } = data;
       const profile: User = {
         ...rest, email, id: cred.user.uid, status: 'pending',
         mapAndChallengeAccess: true, isCompetitionConfirmed: false, registeredAt: new Date().toISOString(),
       };
       await saveUser(profile);
-      if (userApiKey) writeLS(LS_API_KEY, userApiKey);
       sound.playSuccess();
       return { success: true, message: 'Амжилттай бүртгэгдлээ! Админ баталгаажуулсны дараа уралдаанд орно.' };
     } catch (e) {
@@ -403,11 +399,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteUser = (id: string) => { setUsers((p) => p.filter((u) => u.id !== id)); removeUser(id).catch(() => {}); };
   const batchDeleteUsers = (ids: string[]) => ids.forEach(deleteUser);
 
-  const updateUserApiKey = (apiKey: string) => {
-    writeLS(LS_API_KEY, apiKey.trim());
-    setCurrentUser((c) => (c ? { ...c, userApiKey: apiKey.trim() || undefined } : c));
-  };
-
   const updateAdminProfile: AppContextType['updateAdminProfile'] = (u) => {
     if (!currentUser) return;
     const next: User = {
@@ -444,9 +435,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: 'Нууц үг солихын тулд дахин нэвтэрч орно уу.' };
       return { success: false, message: errMsg(e) };
     }
-    if (u.userApiKey !== undefined && target.id === currentUser?.id) writeLS(LS_API_KEY, u.userApiKey.trim());
     setUsers((p) => p.map((x) => (x.id === next.id ? next : x)));
-    if (currentUser?.id === next.id) setCurrentUser({ ...next, userApiKey: u.userApiKey?.trim() || currentUser.userApiKey });
+    if (currentUser?.id === next.id) setCurrentUser(next);
     sound.playSuccess();
     return { success: true, message: 'Таны сургууль болон хувийн мэдээлэл амжилттай хадгалагдлаа!' };
   };
@@ -684,7 +674,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeTab: mapSubTab, isMuted, registerUser, loginUser, resetPasswordEmail, logout, switchUser, approveStudent, rejectStudent,
         approveAllPending, toggleUserMapAccess, batchSetUserMapAccess, deleteUser, batchDeleteUsers, batchSetCompetitionConfirmed,
         saveAttempt, archiveAttempt, batchArchiveAttempts, deleteAttempt, batchDeleteAttempts, setActiveTab, toggleMute,
-        updateUserApiKey, updateAdminProfile, updateUserProfile, gisLayers, setGisLayers, addGisLayer, updateGisLayer, deleteGisLayer,
+        updateAdminProfile, updateUserProfile, gisLayers, setGisLayers, addGisLayer, updateGisLayer, deleteGisLayer,
         resetGisLayers, customQuestions, addCustomQuestion, updateCustomQuestion, deleteCustomQuestion, batchDeleteCustomQuestions,
         deleteCustomQuestionsByLayer, clearAllCustomQuestions, batchAddCustomQuestions, syncAllWithFirebase,
         autoGenerateQuestionsFromGisLayers, layerUsageStats, taskPerformanceStats, recordLayerView, recordTaskAttempt,

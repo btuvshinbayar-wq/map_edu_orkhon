@@ -15,18 +15,21 @@
 | VITE_FIREBASE_AUTH_DOMAIN | Text | map-edu-orkhon.firebaseapp.com |
 | VITE_FIREBASE_PROJECT_ID | Text | map-edu-orkhon |
 | VITE_FIREBASE_APP_ID | Text | (Firebase config-ийн appId) |
-| FIREBASE_PROJECT_ID | Text | map-edu-orkhon |
-| GEMINI_API_KEY | **Secret** | (Gemini түлхүүр, зөвхөн админ ашиглана) |
-| GEMINI_MODEL | Text (заавал биш) | ашиглах Gemini загвар |
 | NODE_VERSION | Text | 22 |
 
 Build command: `npm run build`, output: `dist`. Variables өөрчилсний дараа дахин deploy хийнэ.
 
 ## 3. Туршилт
-- `npm install && npm test` (боловсруулалт, cache, токен шалгалтын тест)
+- `npm install && npm test` (давхарга боловсруулалт, cache/багцлалт, асуулт үүсгэгчийн тест)
 - `npm run dev` (локал; `.env` файлд VITE_FIREBASE_* бөглөнө. **Файлыг git-д оруулахгүй**)
 
 ## 4. Анхаар
 - Firebase Auth-ийн бүртгэлийг клиентээс устгах боломжгүй: админ "хэрэглэгч устгах" нь профайлыг л устгана.
   Бүрэн устгахыг Console → Authentication-аас хийнэ.
 - Газрын зургийн хэрэглээний статистик (давхарга үзсэн, даалгаврын гүйцэтгэл) одоогоор зөвхөн тухайн төхөөрөмж дээр.
+
+## 5. Сорил үүсгэх (админ)
+Админ → Асуулт/Сорил хэсгээс давхаргаа сонгоод, даалгаврын төрөл (контур таах, урт, талбай, хөрш, эвлүүлэх,
+холбох, цэг байрлуулах гэх мэт) болон ангиллыг (9-р анги, 12-р анги, Багш, Баг) сонгож үүсгэнэ.
+Үүссэн асуултууд Firestore-д хэмжээгээр нь багцлагдаж хадгалагдана; хэрэглэгчид зөвхөн хувилбар өөрчлөгдөхөд татна.
+AI/Gemini ашиглахгүй, серверийн функц шаардлагагүй.

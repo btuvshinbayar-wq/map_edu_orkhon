@@ -44,7 +44,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [userApiKey, setUserApiKey] = useState('');
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -58,7 +57,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setPosition(editingUser.position || editingUser.notes || '');
       setPhone(editingUser.phone || '');
       setEmail(editingUser.email || '');
-      setUserApiKey(editingUser.userApiKey || '');
       setNewPassword('');
       setConfirmPassword('');
       setMessage(null);
@@ -115,7 +113,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       email: email.trim(),
       position: position.trim(),
       password: newPassword.trim() ? newPassword.trim() : undefined,
-      userApiKey: userApiKey.trim(),
     });
 
     if (res.success) {
@@ -392,20 +389,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Optional Gemini API Key */}
-          <div>
-            <label className="flex items-center gap-1 font-bold text-slate-700 mb-1">
-              <Key className="h-3.5 w-3.5 text-amber-500" />
-              <span>Gemini API Түлхүүр (Сонголттой)</span>
-            </label>
-            <input
-              type="password"
-              placeholder="Хувийн API түлхүүр холбох бол оруулна уу"
-              value={userApiKey}
-              onChange={(e) => setUserApiKey(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-mono text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none shadow-2xs"
-            />
-          </div>
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">

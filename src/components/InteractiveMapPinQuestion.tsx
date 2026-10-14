@@ -11,7 +11,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { Question } from '../types';
-import { calculateHaversineDistanceKm } from '../data/geoGuessrData';
+import { calculateHaversineDistanceKm } from '../utils/geo';
 import { resolveCountryBoundaryGeoJson } from '../data/sampleGisLayers';
 import { useApp } from '../context/AppContext';
 

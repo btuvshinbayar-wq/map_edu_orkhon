@@ -26,7 +26,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenPro
   const [email, setEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [userApiKey, setUserApiKey] = useState('');
 
   // Unified Login identifier & password
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -84,7 +83,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenPro
       email: cleanEmail,
       password: registerPassword.trim(),
       role: grade === 'teacher' ? 'teacher' : 'student',
-      userApiKey: userApiKey.trim() || undefined,
     });
 
     if (result.success) {
@@ -368,20 +366,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onOpenPro
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none shadow-xs"
                 />
               </div>
-            </div>
-
-            {/* Gemini API Key (Optional) */}
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">
-                Gemini API Түлхүүр (Сонголттой)
-              </label>
-              <input
-                type="password"
-                placeholder="AI тайлбар, зөвлөгөө авах бол оруулна уу"
-                value={userApiKey}
-                onChange={(e) => setUserApiKey(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none shadow-xs"
-              />
             </div>
 
             <button

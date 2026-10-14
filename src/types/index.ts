@@ -47,7 +47,6 @@ export interface User {
   notes?: string;
   position?: string; // Албан тушаал (e.g. Газарзүйн багш, Шалгалтын комиссын дарга)
   organization?: string; // Албан газар / Байгууллага
-  userApiKey?: string; // Registered user's personal Gemini API key
 }
 
 export interface CompetitionTeam {

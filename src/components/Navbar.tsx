@@ -287,15 +287,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, onOpenDonation, onOp
                         </span>
                       </div>
 
-                      <div className="mt-1 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500 flex items-center gap-1">
-                          <Key className="h-3 w-3 text-amber-500" />
-                          API түлхүүр:
-                        </span>
-                        <span className="font-mono text-slate-700">
-                          {currentUser.userApiKey ? 'Холбогдсон ✓' : 'Бүртгэлгүй'}
-                        </span>
-                      </div>
 
                       {onOpenProfile && (
                         <button

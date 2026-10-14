@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "tsx test/layerProcessor.test.ts && tsx test/content.test.ts && tsx test/verifyIdToken.test.ts"
+    "test": "tsx test/layerProcessor.test.ts && tsx test/content.test.ts && tsx test/generator.test.ts"
   },
   "dependencies": {
     "@turf/area": "^7.2.0",

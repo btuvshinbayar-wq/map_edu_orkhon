@@ -8,8 +8,8 @@ import type { User, CompetitionAttempt, CompetitionTeam, DonationRecord, Questio
 export function clean<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
-const stripSecrets = (u: User): Omit<User, 'password' | 'userApiKey'> => {
-  const { password: _p, userApiKey: _k, ...rest } = u;
+const stripSecrets = (u: User): Omit<User, 'password'> => {
+  const { password: _p, ...rest } = u;
   return rest;
 };
 

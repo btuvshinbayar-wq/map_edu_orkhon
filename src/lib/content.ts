@@ -66,9 +66,19 @@ export async function loadQuestions(kv: KV = defaultKV()): Promise<QuestionLike[
 export async function saveQuestions(all: QuestionLike[]): Promise<void> {
   const old = await getDocs(collection(db, 'questionPacks'));
   const packs = packQuestions(all);
-  const batch = writeBatch(db);
-  old.forEach((d) => batch.delete(d.ref));
-  for (const p of packs) batch.set(doc(db, 'questionPacks', p.id), { items: p.items });
+  const keep = new Set(packs.map((p) => p.id));
+
+  // Шинэ багцуудыг бичнэ (нэг commit-д ~5 MB-аас ихгүй)
+  let batch = writeBatch(db);
+  let bytes = 0;
+  for (const p of packs) {
+    const size = new TextEncoder().encode(JSON.stringify(p)).length;
+    if (bytes > 0 && bytes + size > 5_000_000) { await batch.commit(); batch = writeBatch(db); bytes = 0; }
+    batch.set(doc(db, 'questionPacks', p.id), { items: p.items });
+    bytes += size;
+  }
+  // Илүү үлдсэн хуучин багцуудыг устгана
+  old.forEach((d) => { if (!keep.has(d.id)) batch.delete(d.ref); });
   await batch.commit();
   await bump('questionsVersion');
 }
