@@ -9,17 +9,12 @@
 5. Админ: Authentication → Users → өөрийн хэрэглэгч → UID → Firestore `admins/<UID>` баримт (`role: "admin"`).
 
 ## 2. Cloudflare → Settings → Variables (Build variables)
-| Нэр | Төрөл | Утга |
-|---|---|---|
-| VITE_FIREBASE_API_KEY | Text | (Firebase config-ийн apiKey) |
-| VITE_FIREBASE_AUTH_DOMAIN | Text | map-edu-orkhon.firebaseapp.com |
-| VITE_FIREBASE_PROJECT_ID | Text | map-edu-orkhon |
-| VITE_FIREBASE_APP_ID | Text | (Firebase config-ийн appId) |
-| NODE_VERSION | Text | 22 |
+Firebase-ийн web config нь `src/lib/firebase.ts`-д анхдагчаар орсон тул **ямар ч хувьсагч заавал шаардлагагүй**.
+Өөр Firebase төсөл рүү шилжихэд л `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`,
+`VITE_FIREBASE_APP_ID`-г **Build** хувьсагчаар өгнө (Runtime биш).
 
 Build command: `npm run build`. Deploy command: `npx wrangler deploy` (анхдагч). Тохиргоо нь `wrangler.jsonc`-д:
 static файлууд `dist`-ээс, SPA чиглүүлэлт (`not_found_handling: single-page-application`) автомат. `_redirects` файл ХЭРЭГГҮЙ.
-Хувьсагч өөрчилсний дараа дахин deploy хийнэ. `VITE_*` хувьсагч нь **Build** хувьсагч байх ёстой (Runtime биш).
 
 ## 3. Туршилт
 - `npm install && npm test` (давхарга боловсруулалт, cache/багцлалт, асуулт үүсгэгчийн тест)
