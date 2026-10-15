@@ -34,3 +34,36 @@ export function packQuestions(
 
 export const unpackQuestions = (packs: { items: QuestionLike[] }[]): QuestionLike[] =>
   packs.flatMap((p) => p.items);
+
+/** Асуултын харьяалагдах давхаргын ID (featureId нь `${layerId}_f_${index}` хэлбэртэй) */
+export const layerIdFromFeatureId = (fid?: string): string | null =>
+  fid && fid.includes('_f_') ? fid.split('_f_')[0] : null;
+
+const rename = (t: unknown, from: string, to: string) =>
+  typeof t === 'string' && from ? t.split(from).join(to) : t;
+
+/**
+ * Давхаргын нэр солигдоход түүнээс үүсгэсэн бүх асуултын нэрийг (layerName, subCategory, гарчиг,
+ * тайлбар, hint) шинэ нэрээр солино. Давхаргын ID эсвэл хуучин нэрээр таньна.
+ */
+export function renameLayerInQuestions<T extends Record<string, any>>(qs: T[], layerId: string, oldName: string, newName: string): T[] {
+  return qs.map((q) => {
+    const sameLayer =
+      layerIdFromFeatureId(q.shpContourData?.featureId) === layerId ||
+      q.shpContourData?.layerName === oldName ||
+      q.mapPinData?.subCategory === oldName;
+    if (!sameLayer) return q;
+    const c: any = { ...q };
+    if (c.shpContourData) {
+      c.shpContourData = {
+        ...c.shpContourData, layerName: newName,
+        hints: c.shpContourData.hints?.map((h: string) => rename(h, oldName, newName)),
+      };
+    }
+    if (c.mapPinData?.subCategory === oldName) c.mapPinData = { ...c.mapPinData, subCategory: newName };
+    c.explanation = rename(c.explanation, oldName, newName);
+    c.title = rename(c.title, oldName, newName);
+    c.subtitle = rename(c.subtitle, oldName, newName);
+    return c as T;
+  });
+}

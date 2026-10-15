@@ -285,7 +285,7 @@ export function generateComprehensiveGisQuestions(
     layers,
     selectedLayerIds,
     enabledTypes,
-    gradeLevels = ['9', '12', 'teacher', 'team'],
+    gradeLevels = [],
     pointsPerQuestion = 15,
     maxQuestionsPerLayer = 60,
   } = options;

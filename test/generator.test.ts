@@ -38,7 +38,7 @@ const mk = (id: string, name: string, res: typeof riverRes, geometryType: any) =
 const layers = [mk('l1', 'Гол мөрөн', riverRes, 'LineString'), mk('l2', 'Нуур', lakeRes, 'Polygon')] as any[];
 console.log(`Голын давхарга: ${riverRes.stats.featuresAfter} гол, ${kb(riverRes.stats.bytesAfter)}; нуур: ${lakeRes.stats.featuresAfter}, ${kb(lakeRes.stats.bytesAfter)}`);
 
-const qs = generateComprehensiveGisQuestions({ layers, gradeLevels: ['9', '12', 'teacher', 'team'] } as any);
+const qs = generateComprehensiveGisQuestions({ layers } as any);
 const sizes = qs.map((q) => new TextEncoder().encode(JSON.stringify(q)).length);
 const total = sizes.reduce((a, b) => a + b, 0);
 const byType = new Map<string, number>();
@@ -51,6 +51,30 @@ const packBytes = packs.map((p) => new TextEncoder().encode(JSON.stringify(p)).l
 console.log(`Багц: ${packs.length}, хамгийн том багц ${kb(Math.max(...packBytes))}`);
 
 assert(qs.length > 0, 'давхаргуудаас асуулт үүссэн');
-assert(qs.every((q: any) => Array.isArray(q.gradeLevels) && q.gradeLevels.length > 0), 'асуулт бүр ангилалтай (9/12/багш/баг)');
+assert(qs.every((q: any) => Array.isArray(q.gradeLevels) && q.gradeLevels.length === 0), 'үүсгэсэн даалгавар ангилалгүй: зөвхөн Сорилд орно, уралдаанд админ сонгоно');
 assert(packBytes.every((b) => b < 1_000_000), 'бүх багц Firestore-ийн 1 МБ-д багтсан');
 assert(total < 8_000_000, 'нийт сан 8 MB-аас бага (сурагч бүр нэг удаа татах хэмжээ)');
+
+// ---- Давхаргын нэр солих: бүх төрлийн даалгавар шинэ нэрээр харагдах ёстой ----
+import { renameLayerInQuestions, layerIdFromFeatureId } from '../src/lib/contentLogic.ts';
+const cities: Feature[] = Array.from({ length: 25 }, (_, i) => ({
+  type: 'Feature', properties: { name_mn: `Хот ${i}` }, geometry: { type: 'Point', coordinates: [100 + i * 0.4, 45 + (i % 5) * 0.3] },
+}));
+const cityRes = processLayer({ type: 'FeatureCollection', features: cities }, { keepProperties: ['name_mn'] });
+const layers3 = [...layers, mk('l3', 'Хотууд', cityRes, 'Point')] as any[];
+const all = generateComprehensiveGisQuestions({ layers: layers3 } as any);
+const kinds = new Set(all.map((q: any) => q.gisAutoTaskType));
+console.log('Бүх төрлөөр үүсгэсэн:', all.length, 'асуулт; даалгаврын төрөл:', Array.from(kinds).join(', '));
+
+const OLD = 'Нуур', NEW = 'Усан сан (шинэ нэр)';
+const target = all.filter((q: any) => q.shpContourData?.layerName === OLD || q.mapPinData?.subCategory === OLD || layerIdFromFeatureId(q.shpContourData?.featureId) === 'l2');
+const renamed = renameLayerInQuestions(all as any[], 'l2', OLD, NEW);
+const stale = (renamed as any[]).filter((q) => {
+  const hit = (t: any) => typeof t === 'string' && t.includes(`${OLD}`) && !t.includes(NEW);
+  return q.shpContourData?.layerName === OLD || q.mapPinData?.subCategory === OLD || (q.shpContourData?.hints || []).some(hit);
+});
+assert(target.length > 0, `нууры давхаргын ${target.length} асуулт олдсон`);
+assert(stale.length === 0, 'нэр солих үед хуучин нэр бүхий асуулт үлдээгүй (layerName, hints, subCategory)');
+assert((renamed as any[]).filter((q) => q.shpContourData?.layerName === NEW).length > 0, 'шинэ нэр асуултад бичигдсэн');
+const other = (renamed as any[]).filter((q, i) => !target.includes(all[i]));
+assert(other.every((q: any, i) => JSON.stringify(q) === JSON.stringify(all.filter((x) => !target.includes(x))[i])), 'бусад давхаргын асуулт өөрчлөгдөөгүй');

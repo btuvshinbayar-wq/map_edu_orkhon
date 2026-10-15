@@ -11,16 +11,18 @@ import { ExploreMode } from './components/ExploreMode';
 import { LeaderboardView } from './components/LeaderboardView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { PuzzleArena } from './components/PuzzleArena';
-import { OlympiadView } from './components/OlympiadView';
 import { CompetitionModal } from './components/CompetitionModal';
 import { AuthModal } from './components/AuthModal';
 import { DonationModal } from './components/DonationModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { GradeLevel } from './types';
-import { Heart, Award } from 'lucide-react';
+import { Heart, Phone, Award } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { mainMenuTab, setMainMenuTab, mapSubTab, setMapSubTab, currentUser } = useApp();
+  const { mainMenuTab, setMainMenuTab, mapSubTab, setMapSubTab, currentUser, users, saveStatus } = useApp();
+  // Админы холбоо барих утас (нийтэд ил: app_settings/public)
+  const adminContact = users.find((u) => u.role === 'admin');
+  const contactPhone = adminContact?.phone?.trim();
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -62,12 +64,7 @@ const MainLayout: React.FC = () => {
           <PuzzleArena onOpenAuth={() => setIsAuthOpen(true)} />
         )}
 
-        {/* 4. Олимпиад */}
-        {mainMenuTab === 'olympiad' && (
-          <OlympiadView onOpenAuth={() => setIsAuthOpen(true)} />
-        )}
-
-        {/* 5. Шилдэгүүд */}
+        {/* 4. Шилдэгүүд */}
         {mainMenuTab === 'leaderboard' && (
           <LeaderboardView onOpenAuth={() => setIsAuthOpen(true)} />
         )}
@@ -182,14 +179,6 @@ const MainLayout: React.FC = () => {
               Сорил
             </button>
             <button
-              onClick={() => setMainMenuTab('olympiad')}
-              className={`hover:text-amber-600 transition-colors ${
-                mainMenuTab === 'olympiad' ? 'text-amber-600 font-bold' : ''
-              }`}
-            >
-              Олимпиад
-            </button>
-            <button
               onClick={() => {
                 setMainMenuTab('leaderboard');
                 setMapSubTab('leaderboard');
@@ -234,7 +223,43 @@ const MainLayout: React.FC = () => {
             </button>
           </div>
         </div>
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="border-t border-slate-100 pt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-600">
+            <span className="font-bold text-slate-800">Холбоо барих:</span>
+            {contactPhone ? (
+              <a
+                href={`tel:${contactPhone.replace(/\s+/g, '')}`}
+                className="inline-flex items-center gap-1.5 font-mono font-bold text-emerald-800 hover:text-emerald-600"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {contactPhone}
+              </a>
+            ) : (
+              <span className="text-slate-400">утасны дугаар удахгүй</span>
+            )}
+            {adminContact?.fullName && adminContact.fullName.includes('@') === false && (
+              <span className="text-slate-500">· {adminContact.fullName}</span>
+            )}
+          </div>
+        </div>
       </footer>
+
+      {/* Админы өөрчлөлт хадгалагдаж буй эсэх (хадгалагдаагүй бол шууд харагдана) */}
+      {currentUser?.role === 'admin' && saveStatus.state !== 'idle' && (
+        <div
+          role="status"
+          className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-xl rounded-xl px-4 py-2.5 text-xs font-bold shadow-lg ${
+            saveStatus.state === 'error'
+              ? 'bg-rose-600 text-white'
+              : saveStatus.state === 'saving'
+              ? 'bg-amber-500 text-slate-950'
+              : 'bg-emerald-700 text-white'
+          }`}
+        >
+          {saveStatus.state === 'saving' ? 'Хадгалж байна…' : saveStatus.message}
+        </div>
+      )}
 
       {/* Modals */}
       <CompetitionModal

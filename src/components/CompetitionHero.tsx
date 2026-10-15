@@ -146,14 +146,6 @@ export const CompetitionHero: React.FC<CompetitionHeroProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setMainMenuTab('olympiad')}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs font-bold text-white transition-colors cursor-pointer"
-              >
-                <Award className="h-4 w-4" />
-                <span>Олимпиад руу орох</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setMainMenuTab('leaderboard')}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2.5 text-xs font-bold text-slate-950 transition-colors cursor-pointer"
               >

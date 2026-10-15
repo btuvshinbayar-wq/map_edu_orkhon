@@ -200,7 +200,7 @@ export const GisContourQuestionGenerator: React.FC = () => {
   // Form Fields for the new question
   const [questionTitle, setQuestionTitle] = useState('');
   const [categoryLabel, setCategoryLabel] = useState('аймаг');
-  const [selectedGrades, setSelectedGrades] = useState<GradeLevel[]>(['9', '12', 'teacher', 'team']);
+  const [selectedGrades, setSelectedGrades] = useState<GradeLevel[]>([]); // Бэлтгэсэн даалгавар ангилалгүй: бүгд Сорил хэсэгт хадгалагдана
   const [questionPoints, setQuestionPoints] = useState<number>(15);
   const [options, setOptions] = useState<string[]>(['', '', '', '']);
   const [explanation, setExplanation] = useState('');
@@ -340,7 +340,7 @@ export const GisContourQuestionGenerator: React.FC = () => {
     const newQuestion: Question = {
       id: `custom_shp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       category: 'mongolia',
-      gradeLevels: selectedGrades.length > 0 ? selectedGrades : ['9', '12', 'teacher', 'team'],
+      gradeLevels: selectedGrades,
       type: 'shp_contour_guess',
       title:
         questionTitle ||
@@ -521,8 +521,7 @@ export const GisContourQuestionGenerator: React.FC = () => {
             .toString(36)
             .substring(2, 6)}`,
           category: 'mongolia' as const,
-          gradeLevels:
-            selectedGrades.length > 0 ? selectedGrades : ['9', '12', 'teacher', 'team'],
+          gradeLevels: selectedGrades,
           type: 'shp_contour_guess' as const,
           title: `🔍 [Бодит SHP Обьект] Зурагт өгөгдсөн обьект аль ${categoryLabel} вэ?`,
           subtitle: `Contour map болон масштабын хэмжээсийг (${metricHint}) шинжлэн таана уу.`,
@@ -633,8 +632,7 @@ export const GisContourQuestionGenerator: React.FC = () => {
                 const batchQuestions = generateComprehensiveGisQuestions({
                   layers: [filteredLayerForBatch],
                   enabledTypes: selectedBatchTaskTypes,
-                  gradeLevels:
-                    selectedGrades.length > 0 ? selectedGrades : ['9', '12', 'teacher', 'team'],
+                  gradeLevels: selectedGrades,
                   pointsPerQuestion: questionPoints,
                   maxQuestionsPerLayer: Math.max(20, filteredFeatures.length * selectedBatchTaskTypes.length),
                 });
@@ -1042,29 +1040,12 @@ export const GisContourQuestionGenerator: React.FC = () => {
             <div className="grid grid-cols-2 gap-3 pt-2">
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Ангилал (Оролцогчид):
+                  Хадгалах газар:
                 </label>
-                <div className="flex flex-wrap gap-1 text-[11px]">
-                  {(['9', '12', 'teacher', 'team'] as GradeLevel[]).map((gr) => (
-                    <label key={gr} className="flex items-center gap-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedGrades.includes(gr)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedGrades((prev) => [...prev, gr]);
-                          } else {
-                            setSelectedGrades((prev) => prev.filter((g) => g !== gr));
-                          }
-                        }}
-                        className="rounded text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
-                      />
-                      <span className="text-slate-700 font-medium">
-                        {gr === '9' ? '9-р' : gr === '12' ? '12-р' : gr === 'teacher' ? 'Багш' : 'Баг'}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <p className="text-[11px] leading-snug text-slate-600">
+                  Бэлтгэсэн бүх даалгавар <strong>Сорил</strong> хэсэгт хадгалагдана. Уралдаанд аль даалгаврыг
+                  оруулахыг <strong>Уралдааны даалгавар</strong> табаас ангилал тус бүрээр сонгоно.
+                </p>
               </div>
 
               <div>
@@ -1527,7 +1508,7 @@ export const GisContourQuestionGenerator: React.FC = () => {
                                   </span>
                                   <span className="text-slate-300">·</span>
                                   <span className="text-[11px] text-slate-600">
-                                    {q.gradeLevels.join(', ')}
+                                    {q.gradeLevels?.length ? q.gradeLevels.join(', ') : 'Зөвхөн Сорил'}
                                   </span>
                                 </div>
                               </td>

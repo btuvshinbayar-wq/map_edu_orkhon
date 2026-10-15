@@ -20,27 +20,50 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
   const [categoryFilter, setCategoryFilter] = useState<'all' | GradeLevel>('all');
   const [activeCertificateAttemptId, setActiveCertificateAttemptId] = useState<string | null>(null);
 
-  // Filter attempts by category & search (exclude archived attempts from active leaderboard)
-  const filteredAttempts = attempts
-    .filter((att) => {
-      if (att.isArchived) return false;
-      // Category filter
-      if (categoryFilter !== 'all' && att.grade !== categoryFilter) {
-        return false;
-      }
-      // Search term
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        return (
-          att.studentName.toLowerCase().includes(term) ||
-          att.school.toLowerCase().includes(term) ||
-          att.aimag.toLowerCase().includes(term) ||
-          (att.teamName && att.teamName.toLowerCase().includes(term))
-        );
-      }
-      return true;
-    })
-    .sort((a, b) => b.totalScore - a.totalScore);
+  // Ангилал тус бүрийн ЭХНИЙ 10 оролцогч. Хүн бүрийн хамгийн өндөр оноотой ганц оролдлогыг тооцно.
+  const TOP_LIMIT = 10;
+  const topAttempts = (() => {
+    const best = new Map<string, (typeof attempts)[number]>();
+    for (const att of attempts) {
+      if (att.isArchived) continue;
+      if (categoryFilter !== 'all' && att.grade !== categoryFilter) continue;
+      const key = `${att.grade}:${att.userId || att.id}`;
+      const cur = best.get(key);
+      if (!cur || att.totalScore > cur.totalScore) best.set(key, att);
+    }
+    const sorted = Array.from(best.values()).sort((a, b) => b.totalScore - a.totalScore);
+    if (categoryFilter !== 'all') return sorted.slice(0, TOP_LIMIT);
+    // "Бүгд" харагдацад ангилал бүрийн эхний 10-ыг харуулна
+    const perGrade = new Map<string, number>();
+    return sorted.filter((att) => {
+      const n = perGrade.get(att.grade) ?? 0;
+      perGrade.set(att.grade, n + 1);
+      return n < TOP_LIMIT;
+    });
+  })();
+
+  // Байр нь ангилал дотроо тоологдоно
+  const rankInCategory = new Map<string, number>();
+  {
+    const counters = new Map<string, number>();
+    topAttempts.forEach((att) => {
+      const n = (counters.get(att.grade) ?? 0) + 1;
+      counters.set(att.grade, n);
+      rankInCategory.set(att.id, n);
+    });
+  }
+
+  // Хайлт нь зөвхөн эхний 10-ын дотор шүүнэ (10-аас гадуурхыг ил болгохгүй)
+  const filteredAttempts = topAttempts.filter((att) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      att.studentName.toLowerCase().includes(term) ||
+      att.school.toLowerCase().includes(term) ||
+      att.aimag.toLowerCase().includes(term) ||
+      (att.teamName && att.teamName.toLowerCase().includes(term))
+    );
+  });
 
   const viewingAttempt = attempts.find((a) => a.id === activeCertificateAttemptId);
 
@@ -155,6 +178,10 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
         ))}
       </div>
 
+      <p className="text-[11px] text-slate-500">
+        Ангилал тус бүрийн <strong>эхний 10 оролцогчийг</strong> харуулна (оролцогч бүрийн хамгийн өндөр оноотой оролдлого).
+      </p>
+
       {/* Leaderboard Table */}
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
         <table className="w-full text-left text-xs">
@@ -179,7 +206,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
               </tr>
             ) : (
               filteredAttempts.map((att, idx) => {
-                const rank = idx + 1;
+                const rank = rankInCategory.get(att.id) ?? idx + 1;
                 return (
                   <tr key={att.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-4 py-3 text-center">

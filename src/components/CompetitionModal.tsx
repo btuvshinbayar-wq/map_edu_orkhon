@@ -85,7 +85,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
   // Start / restart quiz from Admin's customQuestions (matching grade, or full pool fallback)
   const startQuiz = (gradeToUse: GradeLevel = selectedGrade) => {
     const matchingCustom = customQuestions.filter(
-      (q) => !q.gradeLevels || q.gradeLevels.includes(gradeToUse)
+      (q) => Array.isArray(q.gradeLevels) && q.gradeLevels.includes(gradeToUse)
     );
     // Зөвхөн тухайн ангилалд зориулсан даалгавар. Өөр ангиллын даалгаврыг орлуулж өгөхгүй.
     const pool = matchingCustom;

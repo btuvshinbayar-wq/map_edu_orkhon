@@ -11,7 +11,6 @@ export type MainMenuTab =
   | 'competition' // 1. Уралдаан (9, 12, Багш, Багийн)
   | 'explore' // 2. Газрын зураг
   | 'puzzles' // 3. Сорил
-  | 'olympiad' // 4. Олимпиад
   | 'leaderboard' // 5. Шилдэгүүд
   | 'admin_auth' // 6. Бүртгэл / Админ удирдлага
   | 'map_system'

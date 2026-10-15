@@ -5,7 +5,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import {
-  User, CompetitionAttempt, StudentGradeLevel, MainMenuTab, MapSubTab, ActiveGisLayer, Question,
+  User, CompetitionAttempt, StudentGradeLevel, GradeLevel, MainMenuTab, MapSubTab, ActiveGisLayer, Question,
   LayerUsageStat, TaskPerformanceStat, CertificateConfig, CompetitionScheduleConfig,
   CompetitionTeam, DonationRecord, QuestionIssueReport,
 } from '../types';
@@ -22,8 +22,10 @@ import {
   removeDonation, listReports, saveReportDoc, removeReport, readSetting, writeSetting,
 } from '../lib/store';
 import { processLayer } from '../lib/layerProcessor';
+import { layerIdFromFeatureId, renameLayerInQuestions } from '../lib/contentLogic';
 
 type Result = { success: boolean; message: string; isAdmin?: boolean };
+export type SaveStatus = { state: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
 type TabId = 'competition' | 'explore' | 'puzzles' | 'leaderboard' | 'admin' | 'profile';
 
 interface AppContextType {
@@ -31,7 +33,9 @@ interface AppContextType {
   authReady: boolean;
   users: User[];
   attempts: CompetitionAttempt[];
-  refreshAttempts: () => Promise<void>;
+  refreshAttempts: (force?: boolean) => Promise<void>;
+  saveStatus: SaveStatus;
+  setCompetitionCategory: (ids: string[], grade: GradeLevel, include: boolean) => void;
   mainMenuTab: MainMenuTab;
   setMainMenuTab: (tab: MainMenuTab) => void;
   mapSubTab: MapSubTab;
@@ -157,6 +161,9 @@ const errMsg = (e: any): string => {
   return e?.message || 'Алдаа гарлаа.';
 };
 
+/** Асуултын харьяалагдах давхаргын ID (featureId нь `${layerId}_f_${index}` хэлбэртэй) */
+export const layerIdOfQuestion = (q: Question): string | null => layerIdFromFeatureId(q.shpContourData?.featureId);
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -183,6 +190,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeTab, setActiveTabState] = useState<TabId>('explore');
   const [isMuted, setIsMuted] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: 'idle' });
+  // Анхны ачаалал амжилттай болтол DB-д ЮУ Ч бичихгүй (хоосон төлөвөөр сан дарж устгахаас сэргийлнэ)
+  const contentReadyRef = useRef(false);
 
   const layerIndexRef = useRef<Map<string, LayerIndexEntry>>(new Map());
   const questionsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -218,8 +228,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ---------- Контент (асуулт, давхарга): cache-тэй ----------
   const loadContent = useCallback(async () => {
-    const [qs, index] = await Promise.all([loadQuestions(kv), loadLayerIndex(kv)]);
-    setCustomQuestions(qs as unknown as Question[]);
+    contentReadyRef.current = false;
+    const [qsRaw, index] = await Promise.all([loadQuestions(kv), loadLayerIndex(kv)]);
     layerIndexRef.current = new Map(index.map((e) => [e.id, e]));
     const layers = await Promise.all(
       index.map(async (e): Promise<ActiveGisLayer> => {
@@ -233,6 +243,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }),
     );
     setGisLayers(layers);
+    // Давхаргын нэрийг одоогийн нэртэй нь тулгаж засна (давхарга нэрийг нь өөрчилсөн бол асуулт хуучин нэрээр үлддэг байсан)
+    const nameById = new Map(layers.map((l) => [l.id, l.name]));
+    const qs = (qsRaw as unknown as Question[]).map((q) => {
+      const lid = layerIdOfQuestion(q);
+      const nm = lid ? nameById.get(lid) : undefined;
+      if (nm && q.shpContourData && q.shpContourData.layerName !== nm) {
+        return { ...q, shpContourData: { ...q.shpContourData, layerName: nm } } as Question;
+      }
+      return q;
+    });
+    setCustomQuestions(qs);
+    questionsRef.current = qs;
+    contentReadyRef.current = true;
     return { questionsCount: qs.length, layersCount: layers.length };
   }, [kv]);
 
@@ -240,13 +263,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [sched, cert, pub] = await Promise.all([
       readSetting<CompetitionScheduleConfig>('competition').catch(() => null),
       readSetting<CertificateConfig>('certificate').catch(() => null),
-      readSetting<{ adminName?: string; adminPosition?: string; adminOrg?: string }>('public').catch(() => null),
+      readSetting<{ adminName?: string; adminPosition?: string; adminOrg?: string; adminPhone?: string }>('public').catch(() => null),
     ]);
     if (sched) setCompetitionSchedule({ ...DEFAULT_COMPETITION_SCHEDULE, ...sched });
     if (cert) setCertificateConfig({ ...DEFAULT_CERTIFICATE_CONFIG, ...cert, partners: Array.isArray(cert.partners) ? cert.partners : [] });
     if (pub) {
       setPublicAdmin({
-        id: 'public_admin', fullName: pub.adminName || 'Админ', email: '', phone: '', school: pub.adminOrg || '',
+        id: 'public_admin', fullName: pub.adminName || 'Админ', email: '', phone: pub.adminPhone || '', school: pub.adminOrg || '',
         organization: pub.adminOrg || '', position: pub.adminPosition || '', aimag: '', soum: '', grade: '12',
         studentCode: 'ADMIN', role: 'admin', status: 'approved', registeredAt: '',
       } as User);
@@ -305,15 +328,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return unsub;
   }, [applySession, loadPrivate]);
 
-  // Админ биш хэрэглэгчид: шилдэгүүдийг зөвхөн Шилдэгүүд цонх нээгдэх үед (гараар) уншина
-  const refreshAttempts = useCallback(async () => {
+  // Шилдэгүүдийг зөвхөн Шилдэгүүд цонх нээгдэх үед уншина. Админ биш хэрэглэгчид 5 минут cache-лэнэ (унших квот хэмнэнэ).
+  const refreshAttempts = useCallback(async (force = false) => {
     if (!auth.currentUser) return;
     if (isAdmin) { setAttempts(await listAllAttempts()); return; }
-    const [top, own] = await Promise.all([listTopAttempts(GRADES_FOR_LEADERBOARD, 20), listOwnAttempts(auth.currentUser.uid)]);
+    const key = `lb:${auth.currentUser.uid}`;
+    if (!force) {
+      const c = await kv.get<{ ts: number; items: CompetitionAttempt[] }>(key);
+      if (c && Date.now() - c.ts < 5 * 60_000) { setAttempts(c.items); return; }
+    }
+    const [top, own] = await Promise.all([listTopAttempts(GRADES_FOR_LEADERBOARD, 30), listOwnAttempts(auth.currentUser.uid)]);
     const byId = new Map<string, CompetitionAttempt>();
     [...top, ...own].forEach((a) => byId.set(a.id, a));
-    setAttempts(Array.from(byId.values()));
-  }, [isAdmin]);
+    const items = Array.from(byId.values());
+    setAttempts(items);
+    await kv.set(key, { ts: Date.now(), items });
+  }, [isAdmin, kv]);
 
   const syncAllWithFirebase = async () => {
     const res = await loadContent();
@@ -407,8 +437,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       phone: u.phone ?? currentUser.phone, aimag: u.aimag ?? currentUser.aimag, soum: u.soum ?? currentUser.soum,
     };
     setCurrentUser(next);
+    setUsers((prev) => (prev.some((x) => x.id === next.id) ? prev.map((x) => (x.id === next.id ? next : x)) : [next, ...prev]));
     saveUser(next).catch((e) => console.warn(e));
-    writeSetting('public', { adminName: next.fullName, adminPosition: next.position || '', adminOrg: next.organization || '' }).catch(() => {});
+    writeSetting('public', { adminName: next.fullName, adminPosition: next.position || '', adminOrg: next.organization || '', adminPhone: next.phone || '' }).catch(() => {});
     sound.playSuccess();
   };
 
@@ -447,6 +478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const certNum = `MN-GEO-2026-${data.grade}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
     const a: CompetitionAttempt = { ...data, id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, certificateNumber: certNum, isArchived: false };
     setAttempts((p) => [a, ...p]);
+    if (auth.currentUser) kv.del(`lb:${auth.currentUser.uid}`).catch(() => {});
     saveAttemptDoc(a).catch((e) => console.warn('attempt save failed', e));
     return a;
   };
@@ -463,15 +495,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const batchDeleteAttempts = (ids: string[]) => ids.forEach(deleteAttempt);
 
   // ---------- Асуулт (админ засахад 1.5 сек хүлээгээд бүгдийг нэг дор хадгална) ----------
+  const pendingSaves = useRef(0);
+  const runSave = async (label: string, fn: () => Promise<void>) => {
+    pendingSaves.current += 1;
+    setSaveStatus({ state: 'saving' });
+    try {
+      await fn();
+      pendingSaves.current -= 1;
+      if (pendingSaves.current === 0) setSaveStatus({ state: 'saved', message: `${label} хадгалагдлаа` });
+    } catch (e: any) {
+      pendingSaves.current -= 1;
+      console.error(`${label} хадгалж чадсангүй`, e);
+      setSaveStatus({ state: 'error', message: `${label} ХАДГАЛАГДААГҮЙ: ${errMsg(e)} Хуудсыг шинэчилбэл өөрчлөлт алдагдана.` });
+    }
+  };
   const persistQuestions = () => {
     if (questionsTimer.current) clearTimeout(questionsTimer.current);
     questionsTimer.current = setTimeout(() => {
-      saveQuestions(clean(questionsRef.current) as any).catch((e) => console.warn('questions save', e));
-    }, 1500);
+      questionsTimer.current = null;
+      if (!contentReadyRef.current) {
+        setSaveStatus({ state: 'error', message: 'Асуултын сан ачаалагдаагүй байна. Хуудсыг шинэчилж дахин оролдоно уу (одоо хадгалахгүй).' });
+        return;
+      }
+      runSave('Асуултын сан', () => saveQuestions(clean(questionsRef.current) as any));
+    }, 1200);
   };
+  // Хадгалагдаагүй өөрчлөлттэй байхад хуудсыг хаах гэвэл анхааруулна
+  useEffect(() => {
+    const h = (e: BeforeUnloadEvent) => {
+      if (questionsTimer.current || layerTimers.current.size > 0 || pendingSaves.current > 0) { e.preventDefault(); e.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, []);
   const mutateQuestions = (fn: (q: Question[]) => Question[]) => {
     setCustomQuestions((prev) => { const n = fn(prev); questionsRef.current = n; return n; });
     persistQuestions();
+  };
+  const setCompetitionCategory: AppContextType['setCompetitionCategory'] = (ids, grade, include) => {
+    const set = new Set(ids);
+    mutateQuestions((p) => p.map((q) => {
+      if (!set.has(q.id)) return q;
+      const cur = new Set<GradeLevel>(q.gradeLevels || []);
+      if (include) cur.add(grade); else cur.delete(grade);
+      return { ...q, gradeLevels: Array.from(cur) };
+    }));
   };
   const addCustomQuestion = (q: Question) => { if (q?.id) { mutateQuestions((p) => [q, ...p.filter((x) => x.id !== q.id)]); sound.playSuccess(); } };
   const updateCustomQuestion = (id: string, up: Partial<Question>) => mutateQuestions((p) => p.map((q) => (q.id === id ? { ...q, ...up } : q)));
@@ -501,15 +569,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const persistLayer = (id: string) => {
     const t = layerTimers.current.get(id); if (t) clearTimeout(t);
     layerTimers.current.set(id, setTimeout(async () => {
+      layerTimers.current.delete(id);
       const l = layersRef.current.find((x) => x.id === id); if (!l) return;
-      try {
+      if (!contentReadyRef.current) { setSaveStatus({ state: 'error', message: 'Давхарга ачаалагдаагүй байна. Хуудсыг шинэчилж дахин оролдоно уу.' }); return; }
+      await runSave(`Давхарга "${l.name}"`, async () => {
         // Автомат хамгаалалт: координатыг 5 оронд тоймлоно (геометрийг өөрчлөхгүй, хэмжээг багасгана)
         const { collection: fc, stats } = processLayer(l.geojson, { simplifyTolerance: 0, precision: 5 });
         const { geojson: _g, ...props } = l;
         const entry = await saveLayer(id, { name: l.name, kind: stats.kind, bbox: stats.bbox, props: clean(props) }, fc);
         layerIndexRef.current.set(id, entry);
-      } catch (e) { console.error('Давхарга хадгалж чадсангүй:', e); }
-    }, 1500));
+      });
+    }, 1200));
   };
   const addGisLayer = (layer: ActiveGisLayer) => {
     if (!layer?.id) return;
@@ -519,6 +589,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sound.playSuccess();
   };
   const updateGisLayer = (id: string, up: Partial<ActiveGisLayer>) => {
+    const old = layersRef.current.find((l) => l.id === id);
+    if (old && up.name !== undefined && up.name.trim() && up.name !== old.name) {
+      const oldName = old.name, newName = up.name.trim();
+      // Давхаргын нэр солигдвол түүнээс үүсгэсэн асуултууд (Сорил, Уралдаан) дахь нэр мөн солигдоно
+      mutateQuestions((qs) => renameLayerInQuestions(qs as any[], id, oldName, newName) as Question[]);
+    }
     setGisLayers((p) => p.map((l) => (l.id === id ? { ...l, ...up } : l)));
     layersRef.current = layersRef.current.map((l) => (l.id === id ? { ...l, ...up } : l));
     // Зөвхөн харагдац (visible) солигдсон бол DB-д бичихгүй
@@ -673,7 +749,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        currentUser, authReady, users: usersForUi, attempts, refreshAttempts, mainMenuTab, setMainMenuTab, mapSubTab, setMapSubTab,
+        currentUser, authReady, users: usersForUi, attempts, refreshAttempts, saveStatus, setCompetitionCategory, mainMenuTab, setMainMenuTab, mapSubTab, setMapSubTab,
         activeTab: mapSubTab, isMuted, registerUser, loginUser, resetPasswordEmail, logout, switchUser, approveStudent, rejectStudent,
         approveAllPending, toggleUserMapAccess, batchSetUserMapAccess, deleteUser, batchDeleteUsers, batchSetCompetitionConfirmed,
         saveAttempt, archiveAttempt, batchArchiveAttempts, deleteAttempt, batchDeleteAttempts, setActiveTab, toggleMute,

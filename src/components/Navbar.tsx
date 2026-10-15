@@ -138,18 +138,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, onOpenDonation, onOp
             <span>Сорил</span>
           </button>
 
-          {/* 5. Олимпиад */}
-          <button
-            onClick={() => setMainMenuTab('olympiad')}
-            className={`transition-colors flex items-center gap-1.5 py-1.5 ${
-              mainMenuTab === 'olympiad'
-                ? 'text-amber-600 font-bold border-b-2 border-amber-600 pb-0.5'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Award className="h-4 w-4 text-indigo-500" />
-            <span>Олимпиад</span>
-          </button>
 
           {/* 6. Шилдэгүүд */}
           <button
@@ -365,14 +353,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, onOpenDonation, onOp
           }`}
         >
           Сорил
-        </button>
-        <button
-          onClick={() => setMainMenuTab('olympiad')}
-          className={`py-1 px-2.5 rounded whitespace-nowrap flex items-center gap-1 ${
-            mainMenuTab === 'olympiad' ? 'text-amber-700 font-bold bg-amber-50' : 'text-slate-600'
-          }`}
-        >
-          Олимпиад
         </button>
         <button
           onClick={() => {
