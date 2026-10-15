@@ -78,3 +78,12 @@ assert(stale.length === 0, 'нэр солих үед хуучин нэр бүх�
 assert((renamed as any[]).filter((q) => q.shpContourData?.layerName === NEW).length > 0, 'шинэ нэр асуултад бичигдсэн');
 const other = (renamed as any[]).filter((q, i) => !target.includes(all[i]));
 assert(other.every((q: any, i) => JSON.stringify(q) === JSON.stringify(all.filter((x) => !target.includes(x))[i])), 'бусад давхаргын асуулт өөрчлөгдөөгүй');
+
+// ---- Firestore-ийн "nested arrays" дүрэм: бодит үүсгэсэн асуултаар шалгах ----
+import { encodePack, decodePack, hasNestedArray } from '../src/lib/contentLogic.ts';
+const sample = packs[0];
+assert(hasNestedArray({ items: sample.items }), 'ХУУЧИН хэлбэр (items массив) нь nested array агуулдаг тул Firestore татгалзах байсан (алдааг баталгаажуулав)');
+const stored = encodePack(sample.items);
+assert(!hasNestedArray(stored), 'ШИНЭ хэлбэр ({json: текст}) nested array агуулаагүй, Firestore хүлээн авна');
+assert(JSON.stringify(decodePack(stored)) === JSON.stringify(sample.items), 'задлахад асуултууд бүрэн ижил (координат алдагдаагүй)');
+assert(packs.every((p) => !hasNestedArray(encodePack(p.items))), `${packs.length} багц бүгд Firestore-д хадгалагдах хэлбэртэй`);

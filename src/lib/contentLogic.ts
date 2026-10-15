@@ -67,3 +67,19 @@ export function renameLayerInQuestions<T extends Record<string, any>>(qs: T[], l
     return c as T;
   });
 }
+
+/**
+ * Firestore массив дотор массивыг (nested arrays) хүлээж авдаггүй, харин GeoJSON координат
+ * `[[lon, lat], ...]` хэлбэртэй. Тиймээс асуултын багцыг ТЕКСТ (JSON) болгож хадгална.
+ */
+export const encodePack = (items: QuestionLike[]): { json: string } => ({ json: JSON.stringify(items) });
+
+export const decodePack = (data: { json?: string; items?: QuestionLike[] }): QuestionLike[] =>
+  typeof data.json === 'string' ? (JSON.parse(data.json) as QuestionLike[]) : data.items ?? [];
+
+/** Firestore-ийн "nested arrays are not supported" дүрмийг шалгана (тест, оношилгоонд) */
+export function hasNestedArray(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some((x) => Array.isArray(x) || hasNestedArray(x));
+  if (v && typeof v === 'object') return Object.values(v as object).some(hasNestedArray);
+  return false;
+}

@@ -5,7 +5,7 @@ import type { FeatureCollection } from 'geojson';
 import { db } from './firebase';
 import { defaultKV, type KV } from './kv';
 import { chunkJson, joinChunks } from './layerProcessor';
-import { needsRefresh, packQuestions, unpackQuestions, type QuestionLike } from './contentLogic';
+import { needsRefresh, packQuestions, unpackQuestions, encodePack, decodePack, type QuestionLike } from './contentLogic';
 export type { QuestionLike };
 
 /**
@@ -25,7 +25,8 @@ export interface LayerIndexEntry {
   sizeBytes: number;
   chunks: number;
   version: number; // давхарга бүрийн өөрийн хувилбар
-  props?: Record<string, unknown>; // ActiveGisLayer-ийн геометрээс бусад талбарууд (өнгө, нэрийн талбар г.м)
+  props?: Record<string, unknown>; // ActiveGisLayer-ийн геометрээс бусад талбарууд (өнгө, нэрийн талбар г.м). DB-д propsJson текстээр хадгална
+  propsJson?: string;
 }
 
 const VERSIONS_REF = () => doc(db, 'app_settings', 'content');
@@ -55,7 +56,7 @@ export async function loadQuestions(kv: KV = defaultKV()): Promise<QuestionLike[
     if (cached) return cached;
   }
   const snap = await getDocs(query(collection(db, 'questionPacks'), orderBy('__name__')));
-  const qs = unpackQuestions(snap.docs.map((d) => d.data() as { items: QuestionLike[] }));
+  const qs = unpackQuestions(snap.docs.map((d) => ({ items: decodePack(d.data() as any) })));
   await kv.set('q:data', qs);
   await kv.set('q:ver', questionsVersion);
   return qs;
@@ -74,7 +75,7 @@ export async function saveQuestions(all: QuestionLike[]): Promise<void> {
   for (const p of packs) {
     const size = new TextEncoder().encode(JSON.stringify(p)).length;
     if (bytes > 0 && bytes + size > 5_000_000) { await batch.commit(); batch = writeBatch(db); bytes = 0; }
-    batch.set(doc(db, 'questionPacks', p.id), { items: p.items });
+    batch.set(doc(db, 'questionPacks', p.id), encodePack(p.items));
     bytes += size;
   }
   // Илүү үлдсэн хуучин багцуудыг устгана
@@ -93,7 +94,10 @@ export async function loadLayerIndex(kv: KV = defaultKV()): Promise<LayerIndexEn
     if (cached) return cached;
   }
   const snap = await getDocs(collection(db, 'gisLayers'));
-  const index = snap.docs.map((d) => d.data() as LayerIndexEntry);
+  const index = snap.docs.map((d) => {
+    const e = d.data() as LayerIndexEntry & { propsJson?: string };
+    return { ...e, props: e.propsJson ? JSON.parse(e.propsJson) : e.props } as LayerIndexEntry;
+  });
   await kv.set('gis:index', index);
   await kv.set('gis:ver', gisVersion);
   return index;
@@ -119,6 +123,7 @@ export async function saveLayer(
 ): Promise<LayerIndexEntry> {
   const json = JSON.stringify(fc);
   const chunks = chunkJson(json);
+  const { props: _props, ...metaWithoutProps } = meta;
 
   const prev = await getDoc(doc(db, 'gisLayers', id));
   const version = prev.exists() ? ((prev.data() as LayerIndexEntry).version ?? 0) + 1 : 1;
@@ -129,7 +134,8 @@ export async function saveLayer(
   oldChunks.forEach((d) => batch.delete(d.ref));
   chunks.forEach((text, n) => batch.set(doc(db, 'gisLayerData', id, 'chunks', String(n).padStart(3, '0')), { n, text }));
   const entry: LayerIndexEntry = {
-    id, ...meta,
+    id, ...metaWithoutProps,
+    propsJson: JSON.stringify(meta.props ?? {}),
     featureCount: fc.features.length,
     sizeBytes: new TextEncoder().encode(json).length,
     chunks: chunks.length,
