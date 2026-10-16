@@ -565,7 +565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ---------- GIS давхарга ----------
-  const PERSISTED_LAYER_KEYS = ['name', 'color', 'fillColor', 'fillOpacity', 'weight', 'nameField', 'selectedFeatureIndices', 'notes', 'isOfficial', 'geojson'];
+  const PERSISTED_LAYER_KEYS = ['name', 'color', 'fillColor', 'fillOpacity', 'weight', 'nameField', 'selectedFeatureIndices', 'notes', 'isOfficial', 'geojson', 'colorByField', 'colorMap'];
   const persistLayer = (id: string) => {
     const t = layerTimers.current.get(id); if (t) clearTimeout(t);
     layerTimers.current.set(id, setTimeout(async () => {

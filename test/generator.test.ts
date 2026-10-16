@@ -87,3 +87,32 @@ const stored = encodePack(sample.items);
 assert(!hasNestedArray(stored), 'ШИНЭ хэлбэр ({json: текст}) nested array агуулаагүй, Firestore хүлээн авна');
 assert(JSON.stringify(decodePack(stored)) === JSON.stringify(sample.items), 'задлахад асуултууд бүрэн ижил (координат алдагдаагүй)');
 assert(packs.every((p) => !hasNestedArray(encodePack(p.items))), `${packs.length} багц бүгд Firestore-д хадгалагдах хэлбэртэй`);
+
+// ---- Даалгавар засах (урьдчилан харах): бүх төрлийн бодит даалгавар дээр ----
+import { editOptionText, setCorrectOption, editTitle, editPoints, editPinTolerance, validateDraft } from '../src/lib/draftEdit.ts';
+const firstOfType = new Map<string, any>();
+for (const q of all as any[]) if (!firstOfType.has(q.gisAutoTaskType)) firstOfType.set(q.gisAutoTaskType, q);
+for (const [type, q0] of firstOfType) {
+  assert(validateDraft(q0) === null, `[${type}] үүсгэсэн даалгавар шалгалтыг давна`);
+  if (q0.options?.length) {
+    const ci = q0.options.findIndex((o: any) => o.isCorrect);
+    const wi = q0.options.findIndex((o: any) => !o.isCorrect);
+    // зөв хариултын текстийг засвал
+    const e1 = editOptionText(q0, ci, 'ШИНЭ ЗӨВ');
+    assert(e1.options!.filter((o) => o.isCorrect).length === 1 && e1.options![ci].text === 'ШИНЭ ЗӨВ', `[${type}] зөв хариултын текст засагдсан`);
+    const targetWasAnswer = q0.options[ci].text === q0.targetName;
+    assert(!targetWasAnswer || (e1.targetName === 'ШИНЭ ЗӨВ' && (!e1.shpContourData || e1.shpContourData.targetName === 'ШИНЭ ЗӨВ')), `[${type}] targetName хариултыг дагасан (${targetWasAnswer ? 'тийм' : 'тоон/өөр хариулттай тул хэвээр'})`);
+    assert(targetWasAnswer || e1.targetName === q0.targetName, `[${type}] обьектийн нэр хариултаас хамаарахгүй бол өөрчлөгдөөгүй`);
+    if (q0.shpContourData?.options && q0.shpContourData.options.join('|') === q0.options.map((o: any) => o.text).join('|'))
+      assert(e1.shpContourData!.options.join('|') === e1.options!.map((o) => o.text).join('|'), `[${type}] options ба shpContourData.options синхрон`);
+    // зөв хариулт солих
+    const e2 = setCorrectOption(q0, wi);
+    assert(e2.options!.filter((o) => o.isCorrect).length === 1 && e2.options![wi].isCorrect, `[${type}] зөв хариулт солигдсон`);
+    // хоосон / давхардсан сонголтыг илрүүлэх
+    assert(validateDraft(editOptionText(q0, wi, '')) !== null, `[${type}] хоосон сонголтыг илрүүлнэ`);
+  }
+}
+const pin = firstOfType.get('point_placement');
+assert(editPinTolerance(pin, 120).mapPinData.allowedDistanceKm === 120, 'цэг байрлуулахад зөвшөөрөгдөх зайг засна');
+assert(validateDraft(editTitle(pin, '  ')) !== null, 'хоосон асуултын текстийг илрүүлнэ');
+assert(editPoints(pin, 25.4).points === 25, 'оноо засагдсан');

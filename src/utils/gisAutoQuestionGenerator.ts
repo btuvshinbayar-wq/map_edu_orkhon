@@ -12,13 +12,19 @@ import {
 export type GisAutoTaskType =
   | 'contour_shape' // 1. Хэлбэр дүрсийг таах (Контураар таах)
   | 'name_by_attribute' // 2. Нэр ба үзүүлэлтээр таах
-  | 'length' // 3. Урт тодорхойлох (км)
   | 'area' // 4. Талбай тодорхойлох (км²)
-  | 'location' // 5. Хаана, аль байршилд орших (бүс нутаг, зүг чиг, солбицол)
   | 'neighbor' // 6. Хөрш обьектийг нэрлэх (хиллэдэг / хамгийн ойр орших)
   | 'assemble' // 7. Эвлүүлэх даалгавар (Орон зайн дараалал: Баруунаас зүүн / Хойноос урагш / Хэмжээгээр эвлүүлэх)
-  | 'match' // 8. Холбох даалгавар (Обьектийг шинж чанар, хэмжээ, байршилтай нь зөв харгалзуулан холбох)
   | 'point_placement'; // 9. Цэгэн обьектийг газрын зурагт байрлуулах (Interactive Map Pin)
+
+export const ALL_TASK_TYPES: GisAutoTaskType[] = [
+  'contour_shape',
+  'name_by_attribute',
+  'area',
+  'neighbor',
+  'assemble',
+  'point_placement',
+];
 
 export interface GisAutoGenerateOptions {
   layers: ActiveGisLayer[];
@@ -48,22 +54,10 @@ export const GIS_AUTO_TASK_TYPE_LABELS: {
     badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300',
   },
   {
-    id: 'length',
-    label: '3. Урт тооцоолох (км)',
-    shortDesc: 'Шугаман обьектийн урт эсвэл талбайн периметрийг олох',
-    badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
-  },
-  {
     id: 'area',
     label: '4. Талбай тооцоолох (км²)',
     shortDesc: 'Полигон обьектийн талбайн хэмжээ болон харьцуулалт',
     badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-300',
-  },
-  {
-    id: 'location',
-    label: '5. Хаана, аль байршилд орших',
-    shortDesc: 'Бүс нутаг, зүг чиг, газарзүйн солбицлоор байршлыг тогтоох',
-    badgeColor: 'bg-teal-100 text-teal-900 border-teal-300',
   },
   {
     id: 'neighbor',
@@ -76,12 +70,6 @@ export const GIS_AUTO_TASK_TYPE_LABELS: {
     label: '7. Эвлүүлэх (Орон зайн дараалал)',
     shortDesc: 'Обьектуудыг баруунаас зүүн, хойноос урагш эсвэл хэмжээгээр эвлүүлэх',
     badgeColor: 'bg-rose-100 text-rose-900 border-rose-300',
-  },
-  {
-    id: 'match',
-    label: '8. Холбох (Харгалзуулах)',
-    shortDesc: 'Газрын зургийн обьектуудыг хэмжээ, байршил, шинж чанартай нь холбох',
-    badgeColor: 'bg-orange-100 text-orange-900 border-orange-300',
   },
   {
     id: 'point_placement',
@@ -99,24 +87,18 @@ export function detectQuestionGisTaskType(q: Question): GisAutoTaskType {
   if (id.startsWith('auto_pin_') || q.type === 'interactive_map_pin' || q.mapPinData) {
     return 'point_placement';
   }
-  if (id.startsWith('auto_len_')) return 'length';
   if (id.startsWith('auto_area_')) return 'area';
-  if (id.startsWith('auto_loc_')) return 'location';
   if (id.startsWith('auto_neighbor_')) return 'neighbor';
   if (id.startsWith('auto_assemble_')) return 'assemble';
-  if (id.startsWith('auto_match_')) return 'match';
   if (id.startsWith('auto_name_')) return 'name_by_attribute';
   if (id.startsWith('auto_shape_') || id.startsWith('custom_shp_') || id.startsWith('custom_batch_')) {
     return 'contour_shape';
   }
 
   const title = String(q.title || '').toLowerCase();
-  if (title.includes('[урт тооцоолох') || title.includes('урт ойролцоогоор хэдэн километр')) return 'length';
   if (title.includes('[талбай тооцоолох') || title.includes('талбайн хэмжээ хэдэн км²')) return 'area';
-  if (title.includes('[байршил тодорхойлох') || title.includes('аль бүс нутагт оршдог')) return 'location';
   if (title.includes('[хөрш обьектийг нэрлэх') || title.includes('хил залгаа хөрш')) return 'neighbor';
   if (title.includes('[эвлүүлэх даалгавар') || title.includes('зөв дарааллаар эвлүүлсэн')) return 'assemble';
-  if (title.includes('[холбох даалгавар') || title.includes('зөв холбосон хувилбар')) return 'match';
   if (title.includes('[газрын зурагт байрлуулах') || title.includes('цэг тавьж заана уу')) return 'point_placement';
   if (title.includes('[нэр тодорхойлох')) return 'name_by_attribute';
 
@@ -299,18 +281,8 @@ export function generateComprehensiveGisQuestions(
 
   const activeTypes: Set<GisAutoTaskType> = new Set(
     enabledTypes && enabledTypes.length > 0
-      ? enabledTypes
-      : [
-          'contour_shape',
-          'name_by_attribute',
-          'length',
-          'area',
-          'location',
-          'neighbor',
-          'assemble',
-          'match',
-          'point_placement',
-        ]
+      ? enabledTypes.filter((t) => ALL_TASK_TYPES.includes(t))
+      : ALL_TASK_TYPES
   );
 
   const generatedQuestions: Question[] = [];
@@ -466,62 +438,6 @@ export function generateComprehensiveGisQuestions(
       }
 
       // -----------------------------------------------------------------------
-      // 3. УРТ ТОДОРХОЙЛОХ (length)
-      // -----------------------------------------------------------------------
-      if (activeTypes.has('length') && item.lengthKm > 0) {
-        const trueLen = Math.round(item.lengthKm);
-        const correctLabel = `${trueLen.toLocaleString()} км`;
-
-        // Generate realistic numeric distractors or sibling lengths
-        const siblingLengths = enriched
-          .filter((e) => e.name !== item.name && e.lengthKm > 0 && Math.abs(e.lengthKm - item.lengthKm) > Math.max(15, item.lengthKm * 0.18))
-          .map((e) => `${Math.round(e.lengthKm).toLocaleString()} км`);
-
-        const syntheticMultipliers = [0.45, 1.55, 2.25, 0.28];
-        for (const mult of syntheticMultipliers) {
-          const val = Math.max(5, Math.round(trueLen * mult));
-          const str = `${val.toLocaleString()} км`;
-          if (str !== correctLabel && !siblingLengths.includes(str)) {
-            siblingLengths.push(str);
-          }
-        }
-
-        const opts = buildOptions(correctLabel, siblingLengths.slice(0, 3));
-        const lenTypeWord = isLine ? 'урт' : 'хилийн шугамын нийт урт (периметр)';
-
-        layerQuestions.push({
-          id: `auto_len_${layer.id}_${item.originalIndex}_${timestamp}`,
-          category: 'mongolia',
-          gradeLevels,
-          type: 'shp_contour_guess',
-          title: `📏 [Урт тооцоолох · ${layer.name}] "${item.name}" обьектийн ${lenTypeWord} ойролцоогоор хэдэн километр (км) вэ?`,
-          subtitle: `Зүүн доод булангийн масштабын шугам (км) болон вектор геометрийг ажиглан зөв уртыг сонгоно уу.`,
-          targetName: correctLabel,
-          targetId: `${layer.id}_len_${item.originalIndex}`,
-          explanation: `"${item.name}" (${layer.name}) обьектийн WGS84 солбицлоор тооцоолсон бодит ${lenTypeWord} нь ${item.lengthKm.toLocaleString()} км байна.`,
-          difficulty: 'medium',
-          points: pointsPerQuestion,
-          gisAutoTaskType: 'length',
-          shpContourData: {
-            featureId: `${layer.id}_len_${item.originalIndex}`,
-            layerName: layer.name,
-            geometryType: (item.geomType as any) || 'LineString',
-            geojson: isolatedGeo,
-            categoryLabel,
-            maskedProperties: maskedProps,
-            realProperties: realProps,
-            targetName: correctLabel,
-            options: opts.map((o) => o.text),
-            hints: [
-              `Обьект: ${item.name}`,
-              `Зүүн доод булангийн масштабын шугамтай харьцуулан уртыг баримжаална уу`,
-            ],
-          },
-          options: opts,
-        });
-      }
-
-      // -----------------------------------------------------------------------
       // 4. ТАЛБАЙ ТОДОРХОЙЛОХ (area)
       // -----------------------------------------------------------------------
       if (activeTypes.has('area') && isPoly && item.areaKm2 > 0) {
@@ -574,47 +490,6 @@ export function generateComprehensiveGisQuestions(
             hints: [
               `Обьект: ${item.name}`,
               `Талбайн хэмжээг масштабын шугамтай харьцуулна уу`,
-            ],
-          },
-          options: opts,
-        });
-      }
-
-      // -----------------------------------------------------------------------
-      // 5. ХААНА, АЛЬ БАЙРШИЛД ОРШИХ (location)
-      // -----------------------------------------------------------------------
-      if (activeTypes.has('location') && item.center) {
-        const correctRegion = getMongoliaRegionLabel(item.center.lat, item.center.lng);
-        const allRegions = getAllGeographicRegions().filter((r) => r !== correctRegion);
-        const distractors = allRegions.sort(() => Math.random() - 0.5).slice(0, 3);
-        const opts = buildOptions(correctRegion, distractors);
-
-        layerQuestions.push({
-          id: `auto_loc_${layer.id}_${item.originalIndex}_${timestamp}`,
-          category: 'mongolia',
-          gradeLevels,
-          type: 'shp_contour_guess',
-          title: `🧭 [Байршил тодорхойлох · ${layer.name}] "${item.name}" нь газарзүйн хувьд хаана, аль бүс нутагт оршдог вэ?`,
-          subtitle: `Төв солбицол (${item.center.lat.toFixed(2)}°N, ${item.center.lng.toFixed(2)}°E) болон Монгол орны хүрээ зураг дахь байршлыг ажиглана уу.`,
-          targetName: correctRegion,
-          targetId: `${layer.id}_loc_${item.originalIndex}`,
-          explanation: `"${item.name}" нь ${item.center.lat.toFixed(2)}° хойд өргөрөг, ${item.center.lng.toFixed(2)}° зүүн уртрагт буюу «${correctRegion}»-д байрладаг.`,
-          difficulty: 'easy',
-          points: pointsPerQuestion,
-          gisAutoTaskType: 'location',
-          shpContourData: {
-            featureId: `${layer.id}_loc_${item.originalIndex}`,
-            layerName: layer.name,
-            geometryType: (item.geomType as any) || 'Polygon',
-            geojson: isolatedGeo,
-            categoryLabel,
-            maskedProperties: maskedProps,
-            realProperties: realProps,
-            targetName: correctRegion,
-            options: opts.map((o) => o.text),
-            hints: [
-              `Обьект: ${item.name}`,
-              `Солбицол: ${item.center.lat.toFixed(2)}°N, ${item.center.lng.toFixed(2)}°E`,
             ],
           },
           options: opts,
@@ -822,79 +697,6 @@ export function generateComprehensiveGisQuestions(
             hints: [
               `Өгөгдсөн обьектууд: ${slice.map((s) => s.name).join(', ')}`,
               `Эвлүүлэх чиглэл: ${modeTitle}`,
-            ],
-          },
-          options: opts,
-        });
-      }
-    }
-
-    // -------------------------------------------------------------------------
-    // 8. ХОЛБОХ ДААЛГАВАР (match: Обьектийг хэмжээ, байршил, шинж чанартай нь зөв холбох)
-    // -------------------------------------------------------------------------
-    if (activeTypes.has('match') && enriched.length >= 4) {
-      const pairCount = Math.min(6, Math.floor(enriched.length / 2));
-      for (let m = 0; m < pairCount; m++) {
-        const group = [...enriched]
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 3);
-        if (group.length < 3) continue;
-
-        const describeFeature = (e: EnrichedFeature): string => {
-          if (e.areaKm2 > 0) return `${Math.round(e.areaKm2).toLocaleString()} км² талбайтай`;
-          if (e.lengthKm > 0) return `${Math.round(e.lengthKm).toLocaleString()} км урттай`;
-          if (e.center) {
-            return `${e.center.lat.toFixed(1)}°N, ${e.center.lng.toFixed(1)}°E солбицолтой`;
-          }
-          return `${layer.name} давхаргын обьект`;
-        };
-
-        const d0 = describeFeature(group[0]);
-        const d1 = describeFeature(group[1]);
-        const d2 = describeFeature(group[2]);
-
-        const correctMatch = `1) ${group[0].name} — ${d0} · 2) ${group[1].name} — ${d1} · 3) ${group[2].name} — ${d2}`;
-        const wrongMatch1 = `1) ${group[0].name} — ${d1} · 2) ${group[1].name} — ${d2} · 3) ${group[2].name} — ${d0}`;
-        const wrongMatch2 = `1) ${group[0].name} — ${d2} · 2) ${group[1].name} — ${d0} · 3) ${group[2].name} — ${d1}`;
-        const wrongMatch3 = `1) ${group[0].name} — ${d0} · 2) ${group[1].name} — ${d2} · 3) ${group[2].name} — ${d1}`;
-
-        const opts = buildOptions(correctMatch, [wrongMatch1, wrongMatch2, wrongMatch3]);
-        const multiGeo = makeCleanFeatureCollection(group.map((g) => g.feature));
-
-        layerQuestions.push({
-          id: `auto_match_${layer.id}_${m}_${timestamp}`,
-          category: 'mongolia',
-          gradeLevels,
-          type: 'shp_contour_guess',
-          title: `🔗 [Холбох даалгавар · ${layer.name}] Зураг дээрх 3 обьектийг (${group.map((g) => g.name).join(', ')}) харгалзах газарзүйн үзүүлэлттэй нь зөв холбосон хувилбарыг сонгоно уу?`,
-          subtitle: `Обьект тус бүрийн хэмжээ болон орон зайн байршлыг харьцуулан зөв харгалзуулсан мөрийг олно уу.`,
-          targetName: correctMatch,
-          targetId: `${layer.id}_match_${m}`,
-          explanation: `Зөв холболт: ${correctMatch}`,
-          difficulty: 'hard',
-          points: pointsPerQuestion,
-          gisAutoTaskType: 'match',
-          shpContourData: {
-            featureId: `${layer.id}_match_${m}`,
-            layerName: layer.name,
-            geometryType: (group[0].geomType as any) || 'Polygon',
-            geojson: multiGeo,
-            categoryLabel,
-            maskedProperties: {
-              'ОБЬЕКТ 1': group[0].name,
-              'ОБЬЕКТ 2': group[1].name,
-              'ОБЬЕКТ 3': group[2].name,
-            },
-            realProperties: {
-              [group[0].name]: d0,
-              [group[1].name]: d1,
-              [group[2].name]: d2,
-            },
-            targetName: correctMatch,
-            options: opts.map((o) => o.text),
-            hints: [
-              `Холбох обьектууд: 1) ${group[0].name}, 2) ${group[1].name}, 3) ${group[2].name}`,
-              `Харгалзах утгууд: ${[d0, d1, d2].sort(() => Math.random() - 0.5).join(' | ')}`,
             ],
           },
           options: opts,

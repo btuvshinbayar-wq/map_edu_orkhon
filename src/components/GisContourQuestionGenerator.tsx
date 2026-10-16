@@ -16,6 +16,7 @@ import {
   Database,
   Sliders,
 } from 'lucide-react';
+import { DraftReviewModal } from './DraftReviewModal';
 import { useApp } from '../context/AppContext';
 import { Question, ActiveGisLayer, GradeLevel } from '../types';
 import { ShpContourViewer } from './ShpContourViewer';
@@ -210,6 +211,9 @@ export const GisContourQuestionGenerator: React.FC = () => {
   const [previewAnswered, setPreviewAnswered] = useState<boolean>(false);
   const [canvasTheme, setCanvasTheme] = useState<'light' | 'dark'>('light');
   const [testingQuestionModal, setTestingQuestionModal] = useState<Question | null>(null);
+  // Үүсгэсэн даалгаврыг САНД НЭМЭХЭЭС ӨМНӨ урьдчилан харж засах цонх
+  const [draft, setDraft] = useState<{ title: string; questions: Question[] } | null>(null);
+  const [generateNotice, setGenerateNotice] = useState<string | null>(null);
   const [selectedBatchTaskTypes, setSelectedBatchTaskTypes] = useState<GisAutoTaskType[]>([
     'contour_shape',
   ]);
@@ -552,15 +556,36 @@ export const GisContourQuestionGenerator: React.FC = () => {
       }
     );
 
-    batchAddCustomQuestions(generatedBatch);
-    setSuccessToast(
-      `"${currentLayer.name}" давхаргын шүүгдсэн ${generatedBatch.length} обьектоор${rangeDesc} уралдааны даалгавар үүсгэж санд амжилттай нэмлээ!`
-    );
-    setTimeout(() => setSuccessToast(null), 5000);
+    setGenerateNotice(null);
+    setDraft({
+      title: `"${currentLayer.name}" давхаргын шүүгдсэн ${generatedBatch.length} обьектоор${rangeDesc} контур таах даалгавар`,
+      questions: generatedBatch,
+    });
   };
 
   return (
     <div className="space-y-6">
+      {draft && (
+        <DraftReviewModal
+          title={draft.title}
+          initial={draft.questions}
+          onCancel={() => setDraft(null)}
+          onConfirm={(qs) => {
+            batchAddCustomQuestions(qs);
+            setDraft(null);
+            setSuccessToast(`${qs.length} даалгавар Сорил хэсэгт хадгалагдлаа. Уралдаанд оруулахыг «Уралдааны даалгавар» табаас сонгоно.`);
+            setTimeout(() => setSuccessToast(null), 6000);
+          }}
+        />
+      )}
+
+      {generateNotice && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-sm">
+          <span className="font-semibold">{generateNotice}</span>
+          <button type="button" onClick={() => setGenerateNotice(null)} className="ml-auto font-bold text-amber-700 cursor-pointer">✕</button>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {successToast && (
         <div className="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-xs text-emerald-900 shadow-lg">
@@ -629,20 +654,39 @@ export const GisContourQuestionGenerator: React.FC = () => {
                       }
                     : currentLayer;
 
-                const batchQuestions = generateComprehensiveGisQuestions({
-                  layers: [filteredLayerForBatch],
-                  enabledTypes: selectedBatchTaskTypes,
-                  gradeLevels: selectedGrades,
-                  pointsPerQuestion: questionPoints,
-                  maxQuestionsPerLayer: Math.max(20, filteredFeatures.length * selectedBatchTaskTypes.length),
-                });
-                if (batchQuestions.length > 0) {
-                  batchAddCustomQuestions(batchQuestions);
-                  setSuccessToast(
-                    `"${currentLayer.name}" давхаргаас сонгосон ${selectedBatchTaskTypes.length} төрлөөр ${batchQuestions.length} даалгавар олноор үүсгэж санд нэмлээ!`
+                // Хэрэглэгчийн сонгосон нэрийн баганыг (selectedNameField) заавал дамжуулна. Тэгэхгүй бол автомат таамаглал буруу багана авч болно
+                const layerForGen: ActiveGisLayer = {
+                  ...filteredLayerForBatch,
+                  nameField: selectedNameField || filteredLayerForBatch.nameField,
+                };
+                const perType = selectedBatchTaskTypes.map((t) => ({
+                  type: t,
+                  n: generateComprehensiveGisQuestions({
+                    layers: [layerForGen],
+                    enabledTypes: [t],
+                    gradeLevels: selectedGrades,
+                    pointsPerQuestion: questionPoints,
+                    maxQuestionsPerLayer: Math.max(20, filteredFeatures.length),
+                  }),
+                }));
+                const batchQuestions = perType.flatMap((x) => x.n);
+                const empty = perType.filter((x) => x.n.length === 0).map((x) => GIS_AUTO_TASK_TYPE_LABELS.find((l) => l.id === x.type)?.label || x.type);
+                if (batchQuestions.length === 0) {
+                  setDraft(null);
+                  setGenerateNotice(
+                    `Даалгавар үүссэнгүй: ${empty.join('; ')}. Шалтгаан: нэрийн багана буруу/хоосон байж болно (дээрх «Обьектийн нэр унших багана»-аас зөв баганыг сонгоно уу), эсвэл давхаргын төрөлд тохирохгүй (жишээ нь «Эвлүүлэх» нь дор хаяж 4, «Хөрш» нь 5 нэртэй обьект шаардана).`
                   );
-                  setTimeout(() => setSuccessToast(null), 5000);
+                  return;
                 }
+                setGenerateNotice(
+                  empty.length > 0
+                    ? `Анхаар: дараах төрлөөр даалгавар үүссэнгүй: ${empty.join('; ')} (обьектын тоо эсвэл нэр хүрэлцэхгүй).`
+                    : null
+                );
+                setDraft({
+                  title: `"${currentLayer.name}" давхаргаас ${selectedBatchTaskTypes.length} төрлөөр үүсгэсэн ${batchQuestions.length} даалгавар`,
+                  questions: batchQuestions,
+                });
               }}
               disabled={!currentLayer || features.length === 0}
               className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors cursor-pointer"

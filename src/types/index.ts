@@ -326,6 +326,9 @@ export interface ActiveGisLayer {
   isOfficial?: boolean;
   createdAt: string;
   notes?: string;
+  /** Полигоныг атрибутын утгаар нь өөр өөр өнгөөр дүүргэх: багана ба утга бүрийн өнгө */
+  colorByField?: string;
+  colorMap?: Record<string, string>;
 }
 
 export interface LayerUsageStat {

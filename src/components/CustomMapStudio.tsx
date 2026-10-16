@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Database,
 } from 'lucide-react';
+import { CategoryColorEditor } from './CategoryColorEditor';
 import { RealLeafletMap, BasemapType } from './RealLeafletMap';
 import { ActiveGisLayer } from '../types';
 import { useApp } from '../context/AppContext';
@@ -1041,6 +1042,10 @@ fetch('/layers/mongolia_layers.zip')
                   </div>
                 );
               })()}
+
+              {(selectedLayer.geometryType === 'Polygon' || selectedLayer.geometryType === 'MultiPolygon' || selectedLayer.geometryType === 'Mixed') && (
+                <CategoryColorEditor layer={selectedLayer} onChange={updateSelectedLayerStyle} />
+              )}
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>

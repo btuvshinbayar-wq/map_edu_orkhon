@@ -13,12 +13,9 @@ const CATEGORIES: { id: GradeLevel; label: string }[] = [
 const TASK_LABELS: Record<string, string> = {
   contour_shape: 'Хэлбэр дүрс таах',
   name_by_attribute: 'Нэр ба үзүүлэлт',
-  length: 'Урт',
   area: 'Талбай',
-  location: 'Байршил',
   neighbor: 'Хөрш',
   assemble: 'Эвлүүлэх',
-  match: 'Холбох',
   point_placement: 'Цэг байрлуулах',
 };
 

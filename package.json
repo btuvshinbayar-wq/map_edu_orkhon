@@ -7,36 +7,40 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "tsx test/layerProcessor.test.ts && tsx test/content.test.ts && tsx test/generator.test.ts"
+    "test": "tsx test/layerProcessor.test.ts && tsx test/content.test.ts && tsx test/generator.test.ts && tsx test/layerColors.test.ts && vitest run"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.0",
     "@turf/area": "^7.2.0",
     "@turf/bbox": "^7.2.0",
     "@turf/length": "^7.2.0",
     "@turf/simplify": "^7.2.0",
-    "firebase": "^11.10.0",
-    "@tailwindcss/vite": "^4.1.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "canvas-confetti": "^1.9.4",
+    "firebase": "^11.10.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "shpjs": "^6.2.0",
-    "tailwindcss": "^4.1.0"
+    "tailwindcss": "^4.1.0",
+    "vite": "^6.0.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/geojson": "^7946.0.14",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^26.6.5",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/leaflet": "^1.9.22",
-    "@types/canvas-confetti": "^1.9.0",
-    "@types/shpjs": "^3.4.7"
+    "@types/shpjs": "^3.4.7",
+    "jsdom": "^30.1.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^5.0.4"
   },
   "overrides": {
     "rollup": "4.64.5"

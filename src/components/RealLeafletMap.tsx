@@ -4,6 +4,7 @@ import { ZoomIn, ZoomOut, Compass, Navigation2 } from 'lucide-react';
 import { AIMAGS_DATA } from '../data/aimags';
 import { ActiveGisLayer } from '../types';
 import { extractFeatureName, getFilteredLayerGeoJson } from '../utils/gisUtils';
+import { featureFillColor } from '../utils/layerColors';
 
 // Real coordinates (Lat, Lng) for Mongolia Aimags
 export const AIMAG_COORDINATES: Record<string, [number, number]> = {
@@ -307,6 +308,8 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
       fillColor: string;
       fillOpacity: number;
       weight: number;
+      colorByField?: string;
+      colorMap?: Record<string, string>;
     }[] = [];
 
     if (vectorLayers && vectorLayers.length > 0) {
@@ -324,6 +327,8 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
               fillColor: layer.fillColor,
               fillOpacity: layer.fillOpacity,
               weight: layer.weight,
+              colorByField: layer.colorByField,
+              colorMap: layer.colorMap,
             });
           }
         }
@@ -348,11 +353,11 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
     layersToRender.forEach((layer) => {
       try {
         const geoLayer = L.geoJSON(layer.geojson, {
-          style: () => ({
+          style: (feature) => ({
             color: layer.color,
             weight: layer.weight,
             opacity: 0.9,
-            fillColor: layer.fillColor,
+            fillColor: featureFillColor(layer, feature as any),
             fillOpacity: layer.fillOpacity,
             smoothFactor: 1.5,
           }),
@@ -462,6 +467,8 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
         fillOpacity: l.fillOpacity,
         weight: l.weight,
         featureCount: l.featureCount,
+        colorByField: l.colorByField,
+        colorMap: l.colorMap,
       }))
     ),
     vectorGeoJson,
@@ -657,6 +664,28 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
         className="w-full h-full z-0"
         style={{ backgroundColor: effectiveTileType === 'contour' ? '#ffffff' : '#0f172a' }}
       />
+
+      {/* Өнгөөр ангилсан давхаргын тайлбар (legend) */}
+      {(vectorLayers || [])
+        .filter((l) => l.visible && l.colorByField && l.colorMap && Object.keys(l.colorMap).length > 0)
+        .slice(0, 2)
+        .map((l, li) => (
+          <div
+            key={l.id}
+            className="absolute bottom-4 z-20 max-h-48 w-44 overflow-y-auto rounded-xl border border-slate-200 bg-white/95 p-2 text-[10px] shadow-lg backdrop-blur-md"
+            style={{ left: `${16 + li * 184}px` }}
+          >
+            <div className="mb-1 font-black text-slate-800 truncate">
+              {l.name}: {l.colorByField}
+            </div>
+            {Object.entries(l.colorMap!).slice(0, 40).map(([value, color]) => (
+              <div key={value} className="flex items-center gap-1.5 py-px text-slate-700">
+                <span className="inline-block h-3 w-3 shrink-0 rounded-sm border border-slate-300" style={{ backgroundColor: color }} />
+                <span className="truncate">{value}</span>
+              </div>
+            ))}
+          </div>
+        ))}
 
       {/* Top Left: Official Basemap Tile Switcher (Satellite & Contour map) */}
       {showTileSwitcher && (
