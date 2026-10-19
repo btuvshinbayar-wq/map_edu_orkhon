@@ -4,7 +4,7 @@ import { ZoomIn, ZoomOut, Compass, Navigation2 } from 'lucide-react';
 import { AIMAGS_DATA } from '../data/aimags';
 import { ActiveGisLayer } from '../types';
 import { extractFeatureName, getFilteredLayerGeoJson } from '../utils/gisUtils';
-import { featureFillColor } from '../utils/layerColors';
+import { makeFeatureColorFn, effectiveColorMode } from '../utils/layerColors';
 
 // Real coordinates (Lat, Lng) for Mongolia Aimags
 export const AIMAG_COORDINATES: Record<string, [number, number]> = {
@@ -310,6 +310,7 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
       weight: number;
       colorByField?: string;
       colorMap?: Record<string, string>;
+      colorFn: (feature: any) => string;
     }[] = [];
 
     if (vectorLayers && vectorLayers.length > 0) {
@@ -329,6 +330,8 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
               weight: layer.weight,
               colorByField: layer.colorByField,
               colorMap: layer.colorMap,
+              // Обьект бүрийн дүүргэлтийн өнгө (полигонд анхдагчаар хөрш бүр өөр өнгө)
+              colorFn: makeFeatureColorFn(layer),
             });
           }
         }
@@ -343,6 +346,7 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
         fillColor: vectorStyle?.fillColor || '#38bdf8',
         fillOpacity: vectorStyle?.fillOpacity ?? 0.35,
         weight: vectorStyle?.weight ?? 2.5,
+        colorFn: () => vectorStyle?.fillColor || '#38bdf8', // дан ганц түр давхарга: нэг өнгө
       });
     }
 
@@ -357,7 +361,7 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
             color: layer.color,
             weight: layer.weight,
             opacity: 0.9,
-            fillColor: featureFillColor(layer, feature as any),
+            fillColor: layer.colorFn(feature),
             fillOpacity: layer.fillOpacity,
             smoothFactor: 1.5,
           }),
@@ -469,6 +473,10 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
         featureCount: l.featureCount,
         colorByField: l.colorByField,
         colorMap: l.colorMap,
+        colorMode: l.colorMode,
+        colorSeed: l.colorSeed,
+        overrides: l.featureColorOverrides,
+        geometryType: l.geometryType,
       }))
     ),
     vectorGeoJson,
@@ -667,7 +675,7 @@ export const RealLeafletMap: React.FC<RealLeafletMapProps> = ({
 
       {/* Өнгөөр ангилсан давхаргын тайлбар (legend) */}
       {(vectorLayers || [])
-        .filter((l) => l.visible && l.colorByField && l.colorMap && Object.keys(l.colorMap).length > 0)
+        .filter((l) => l.visible && effectiveColorMode(l) === 'column' && l.colorByField && l.colorMap && Object.keys(l.colorMap).length > 0)
         .slice(0, 2)
         .map((l, li) => (
           <div

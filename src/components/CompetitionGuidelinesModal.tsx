@@ -21,7 +21,12 @@ interface CompetitionGuidelinesModalProps {
   onClose: () => void;
 }
 
-export const COMPETITION_GUIDELINES_HTML = `
+import { normalizeScoring, describeRules, type RulesConfigLike } from '../lib/scoring';
+
+/** Удирдамжийн хэвлэх/татах (Word, PDF) текст: хугацаа болон хурдны урамшуулал нь админы тохиргоотой таарна */
+export const buildCompetitionGuidelinesHtml = (cfg?: RulesConfigLike | null): string => {
+  const sc = normalizeScoring(cfg);
+  return `
 <h2>НЭГ. ЕРӨНХИЙ МЭДЭЭЛЭЛ БА ЗОРИЛГО</h2>
 <p>
   <strong>1.1. Уралдааны нэр:</strong> «Газрын зургийг хэн сайн мэдэх вэ?» Улсын цахим интерактив уралдаан
@@ -96,7 +101,7 @@ export const COMPETITION_GUIDELINES_HTML = `
 <h2>ДӨРӨВ. БҮРТГЭЛ БА ЗОХИОН БАЙГУУЛАЛТЫН ЖУРАМ</h2>
 <ul>
   <li><strong>4.1. Цахим бүртгэл:</strong> Оролцогч бүр платформын «Хэрэглэгчийн бүртгэл» хэсэгт өөрийн овог нэр, аймаг/хот, сум/дүүрэг, сургууль, ангилал болон холбоо барих мэдээллээ үнэн зөв оруулж бүртгүүлнэ.</li>
-  <li><strong>4.2. Бэлтгэл болон Дадлага («Сорил» цэс):</strong> Сайтад бүртгүүлсэн бүх сурагч, багш нар уралдаан эхлэхээс өмнө «Газрын зураг», «Сорил», «Олимпиад» цэсүүдийг чөлөөтэй ашиглаж, давхарга болон даалгаврын 9 төрлөөр дадлага хийх боломжтой.</li>
+  <li><strong>4.2. Бэлтгэл болон Дадлага («Сорил» цэс):</strong> Сайтад бүртгүүлсэн бүх сурагч, багш нар уралдаан эхлэхээс өмнө «Газрын зураг», «Сорил» цэсүүдийг чөлөөтэй ашиглаж, давхарга болон даалгаврын төрлүүдээр (контур таах, нэр тодорхойлох, талбай, хөрш, эвлүүлэх, цэг байрлуулах) дадлага хийх боломжтой.</li>
   <li><strong>4.3. Уралдааны эрх баталгаажуулалт:</strong> Албан ёсны «Уралдаан» цэс рүү зөвхөн Зохион байгуулах комисс (Админ)-оос эрхийг нь баталгаажуулсан оролцогчид товлогдсон цагийн хуваарийн дагуу нэвтэрч шалгалтаа өгнө.</li>
 </ul>
 
@@ -111,11 +116,11 @@ export const COMPETITION_GUIDELINES_HTML = `
   <tbody>
     <tr>
       <td><strong>Асуултын тоо ба Хугацаа</strong></td>
-      <td>Нэг удаагийн уралдааны сорил нь <strong>10 асуултаас</strong> бүрдэх бөгөөд асуулт тус бүрт <strong>30 секундийн</strong> хугацаа өгөгдөнө.</td>
+      <td>Нэг удаагийн уралдааны сорил: <strong>${describeRules(cfg)}</strong> өгөгдөнө.</td>
     </tr>
     <tr>
       <td><strong>Үндсэн оноо ба Хурдны урамшуулал</strong></td>
-      <td>Зөв хариулт бүр суурь оноо (100–150 оноо) авахаас гадна зарцуулсан хугацаанаас хамаарч секунд тутамд <strong>Хурдны бонус оноо</strong> нэмэгдэнэ.</td>
+      <td>Зөв хариулт бүр суурь оноо авахаас гадна <strong>хурдан хариулах тусам өндөр оноо</strong> авна: оноо = суурь оноо × (1 + ${sc.speedBonusPercent}% × үлдсэн хугацаа ÷ нийт хугацаа). Зөв хариултыг <strong>хамгийн бага хугацаанд</strong> хийсэн нь хамгийн өндөр оноо авна. Буруу эсвэл цаг дууссан хариулт 0 оноотой.</td>
     </tr>
     <tr>
       <td><strong>Байршлын нарийвчлал (Pin Accuracy)</strong></td>
@@ -123,7 +128,7 @@ export const COMPETITION_GUIDELINES_HTML = `
     </tr>
     <tr>
       <td><strong>Эрэмбэлэх зарчим (Tie-break)</strong></td>
-      <td>Оролцогчдын нийт оноо тэнцсэн тохиолдолд: 1) Гүйцэтгэлийн хувь (%), 2) Зарцуулсан нийт хугацаа (хамгийн бага хугацаанд гүйцэтгэсэн нь дээр эрэмбэлэгдэнэ) гэсэн дарааллаар байр эзлүүлнэ.</td>
+      <td>Байрыг нийт оноогоор тогтооно. Оноо тэнцсэн тохиолдолд <strong>зарцуулсан нийт хугацаа бага</strong> нь дээр эрэмбэлэгдэнэ.</td>
     </tr>
   </tbody>
 </table>
@@ -149,6 +154,9 @@ export const COMPETITION_GUIDELINES_HTML = `
   <li>Даалгавартай холбоотой санал, залруулгыг сурагч, багш нар «Сорил» цэсний <strong>«Алдаа мэдээлэх»</strong> товчоор дамжуулан Зохион байгуулах комисст шууд илгээх боломжтой.</li>
 </ul>
 `;
+};
+
+export const COMPETITION_GUIDELINES_HTML = buildCompetitionGuidelinesHtml();
 
 export const CompetitionGuidelinesModal: React.FC<CompetitionGuidelinesModalProps> = ({
   isOpen,
@@ -161,11 +169,11 @@ export const CompetitionGuidelinesModal: React.FC<CompetitionGuidelinesModalProp
   const title = '«Газрын зургийг хэн сайн мэдэх вэ?» Улсын интерактив уралдааны удирдамж';
 
   const handleDownloadWord = () => {
-    exportToDocx(title, COMPETITION_GUIDELINES_HTML, 'Газрын_зургийг_хэн_сайн_мэдэх_вэ_Удирдамж');
+    exportToDocx(title, buildCompetitionGuidelinesHtml(competitionSchedule), 'Газрын_зургийг_хэн_сайн_мэдэх_вэ_Удирдамж');
   };
 
   const handlePrintPdf = () => {
-    exportToPdf(title, COMPETITION_GUIDELINES_HTML);
+    exportToPdf(title, buildCompetitionGuidelinesHtml(competitionSchedule));
   };
 
   return (
@@ -373,13 +381,13 @@ export const CompetitionGuidelinesModal: React.FC<CompetitionGuidelinesModalProp
               </h3>
               <ul className="space-y-1.5 text-xs text-slate-600 list-disc pl-4">
                 <li>
-                  <strong className="text-slate-900">Хугацаа:</strong> Уралдааны багц 10 даалгавартай, даалгавар тус бүрт <strong>30 секунд</strong> өгөгдөнө.
+                  <strong className="text-slate-900">Хугацаа:</strong> Уралдаан: <strong>{describeRules(competitionSchedule)}</strong> өгөгдөнө.
                 </li>
                 <li>
-                  <strong className="text-slate-900">Оноо тооцоолол:</strong> Суурь оноо + хурдны урамшуулал оноо + байршлын нарийвчлал (км-ийн зөрүүгээр).
+                  <strong className="text-slate-900">Оноо тооцоолол:</strong> Суурь оноо × (1 + хурдны урамшуулал): хурдан зөв хариулсан нь өндөр оноо авна.
                 </li>
                 <li>
-                  <strong className="text-slate-900">Чансаа эрэмбэлэх:</strong> Нийт оноо тэнцвэл гүйцэтгэлийн хувь (%) болон зарцуулсан хугацаагаар (бага хугацаа зарцуулсан нь дээрээ) эрэмбэлнэ.
+                  <strong className="text-slate-900">Чансаа эрэмбэлэх:</strong> Нийт оноо тэнцвэл зарцуулсан нийт хугацаагаар (бага хугацаа зарцуулсан нь дээрээ) эрэмбэлнэ.
                 </li>
               </ul>
             </div>

@@ -7,7 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import {
   User, CompetitionAttempt, StudentGradeLevel, GradeLevel, MainMenuTab, MapSubTab, ActiveGisLayer, Question,
   LayerUsageStat, TaskPerformanceStat, CertificateConfig, CompetitionScheduleConfig,
-  CompetitionTeam, DonationRecord, QuestionIssueReport,
+  CompetitionTeam, DonationRecord, QuestionIssueReport, DonorCertificateConfig,
 } from '../types';
 import { sound } from '../utils/audio';
 import { generateComprehensiveGisQuestions, GisAutoTaskType } from '../utils/gisAutoQuestionGenerator';
@@ -23,6 +23,9 @@ import {
 } from '../lib/store';
 import { processLayer } from '../lib/layerProcessor';
 import { layerIdFromFeatureId, renameLayerInQuestions } from '../lib/contentLogic';
+import { publishLive } from '../lib/liveStore';
+import { DEFAULT_DONOR_CERTIFICATE } from '../components/DonorCertificateSheet';
+import type { LiveSession } from '../lib/live';
 
 type Result = { success: boolean; message: string; isAdmin?: boolean };
 export type SaveStatus = { state: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
@@ -36,6 +39,9 @@ interface AppContextType {
   refreshAttempts: (force?: boolean) => Promise<void>;
   saveStatus: SaveStatus;
   setCompetitionCategory: (ids: string[], grade: GradeLevel, include: boolean) => void;
+  bulkEditQuestions: (ids: string[], fn: (q: Question) => Question) => void;
+  /** Уралдааны явцыг админы шууд хяналтад мэдээлнэ (алдаа гарвал уралдаанд саад болохгүй) */
+  reportLive: (p: Omit<LiveSession, 'userId' | 'name' | 'school' | 'aimag' | 'updatedAt'> & { name?: string }) => void;
   mainMenuTab: MainMenuTab;
   setMainMenuTab: (tab: MainMenuTab) => void;
   mapSubTab: MapSubTab;
@@ -95,6 +101,9 @@ interface AppContextType {
   certificateConfig: CertificateConfig;
   updateCertificateConfig: (updates: Partial<CertificateConfig>) => void;
   resetCertificateConfig: () => void;
+  donorCertificateConfig: DonorCertificateConfig;
+  updateDonorCertificateConfig: (updates: Partial<DonorCertificateConfig>) => void;
+  resetDonorCertificateConfig: () => void;
   competitionSchedule: CompetitionScheduleConfig;
   updateCompetitionSchedule: (updates: Partial<CompetitionScheduleConfig>) => void;
   isCompetitionCurrentlyOpen: boolean;
@@ -182,6 +191,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [gisLayers, setGisLayers] = useState<ActiveGisLayer[]>([]);
   const [customQuestions, setCustomQuestions] = useState<Question[]>([]);
   const [certificateConfig, setCertificateConfig] = useState<CertificateConfig>(DEFAULT_CERTIFICATE_CONFIG);
+  const [donorCertificateConfig, setDonorCertificateConfig] = useState<DonorCertificateConfig>(DEFAULT_DONOR_CERTIFICATE);
   const [competitionSchedule, setCompetitionSchedule] = useState<CompetitionScheduleConfig>(DEFAULT_COMPETITION_SCHEDULE);
   const [layerUsageStats, setLayerUsageStats] = useState<LayerUsageStat[]>(() => readLS(LS_LAYER_STATS, []));
   const [taskPerformanceStats, setTaskPerformanceStats] = useState<TaskPerformanceStat[]>(() => readLS(LS_TASK_STATS, []));
@@ -260,11 +270,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [kv]);
 
   const loadSettings = useCallback(async () => {
-    const [sched, cert, pub] = await Promise.all([
+    const [sched, cert, pub, donorCert] = await Promise.all([
       readSetting<CompetitionScheduleConfig>('competition').catch(() => null),
       readSetting<CertificateConfig>('certificate').catch(() => null),
       readSetting<{ adminName?: string; adminPosition?: string; adminOrg?: string; adminPhone?: string }>('public').catch(() => null),
+      readSetting<DonorCertificateConfig>('donorCertificate').catch(() => null),
     ]);
+    if (donorCert) setDonorCertificateConfig({ ...DEFAULT_DONOR_CERTIFICATE, ...donorCert });
     if (sched) setCompetitionSchedule({ ...DEFAULT_COMPETITION_SCHEDULE, ...sched });
     if (cert) setCertificateConfig({ ...DEFAULT_CERTIFICATE_CONFIG, ...cert, partners: Array.isArray(cert.partners) ? cert.partners : [] });
     if (pub) {
@@ -532,6 +544,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomQuestions((prev) => { const n = fn(prev); questionsRef.current = n; return n; });
     persistQuestions();
   };
+  const reportLive: AppContextType['reportLive'] = (p) => {
+    if (!currentUser || currentUser.role === 'admin') return; // админы туршилт шууд хяналтад орохгүй
+    publishLive({
+      ...p,
+      userId: currentUser.id,
+      name: p.name || currentUser.fullName,
+      school: currentUser.school || '',
+      aimag: currentUser.aimag || '',
+      updatedAt: Date.now(),
+    }).catch((e) => console.warn('live report', e));
+  };
+  const bulkEditQuestions: AppContextType['bulkEditQuestions'] = (ids, fn) => {
+    const set = new Set(ids);
+    mutateQuestions((p) => p.map((q) => (set.has(q.id) ? fn(q) : q)));
+  };
   const setCompetitionCategory: AppContextType['setCompetitionCategory'] = (ids, grade, include) => {
     const set = new Set(ids);
     mutateQuestions((p) => p.map((q) => {
@@ -565,7 +592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ---------- GIS давхарга ----------
-  const PERSISTED_LAYER_KEYS = ['name', 'color', 'fillColor', 'fillOpacity', 'weight', 'nameField', 'selectedFeatureIndices', 'notes', 'isOfficial', 'geojson', 'colorByField', 'colorMap'];
+  const PERSISTED_LAYER_KEYS = ['name', 'color', 'fillColor', 'fillOpacity', 'weight', 'nameField', 'selectedFeatureIndices', 'notes', 'isOfficial', 'geojson', 'colorByField', 'colorMap', 'colorMode', 'colorSeed', 'featureColorOverrides'];
   const persistLayer = (id: string) => {
     const t = layerTimers.current.get(id); if (t) clearTimeout(t);
     layerTimers.current.set(id, setTimeout(async () => {
@@ -633,6 +660,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const next = { ...certificateConfig, ...up };
     setCertificateConfig(next);
     writeSetting('certificate', next).catch((e) => console.warn(e));
+  };
+  const updateDonorCertificateConfig = (up: Partial<DonorCertificateConfig>) => {
+    const next = { ...donorCertificateConfig, ...up };
+    setDonorCertificateConfig(next);
+    writeSetting('donorCertificate', next).catch((e) => console.warn(e));
+  };
+  const resetDonorCertificateConfig = () => {
+    setDonorCertificateConfig(DEFAULT_DONOR_CERTIFICATE);
+    writeSetting('donorCertificate', DEFAULT_DONOR_CERTIFICATE).catch(() => {});
   };
   const resetCertificateConfig = () => { setCertificateConfig(DEFAULT_CERTIFICATE_CONFIG); writeSetting('certificate', DEFAULT_CERTIFICATE_CONFIG).catch(() => {}); };
   const updateCompetitionSchedule = (up: Partial<CompetitionScheduleConfig>) => {
@@ -749,7 +785,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        currentUser, authReady, users: usersForUi, attempts, refreshAttempts, saveStatus, setCompetitionCategory, mainMenuTab, setMainMenuTab, mapSubTab, setMapSubTab,
+        currentUser, authReady, users: usersForUi, attempts, refreshAttempts, saveStatus, setCompetitionCategory, bulkEditQuestions, reportLive, mainMenuTab, setMainMenuTab, mapSubTab, setMapSubTab,
         activeTab: mapSubTab, isMuted, registerUser, loginUser, resetPasswordEmail, logout, switchUser, approveStudent, rejectStudent,
         approveAllPending, toggleUserMapAccess, batchSetUserMapAccess, deleteUser, batchDeleteUsers, batchSetCompetitionConfirmed,
         saveAttempt, archiveAttempt, batchArchiveAttempts, deleteAttempt, batchDeleteAttempts, setActiveTab, toggleMute,
@@ -757,7 +793,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetGisLayers, customQuestions, addCustomQuestion, updateCustomQuestion, deleteCustomQuestion, batchDeleteCustomQuestions,
         deleteCustomQuestionsByLayer, clearAllCustomQuestions, batchAddCustomQuestions, syncAllWithFirebase,
         autoGenerateQuestionsFromGisLayers, layerUsageStats, taskPerformanceStats, recordLayerView, recordTaskAttempt,
-        certificateConfig, updateCertificateConfig, resetCertificateConfig, competitionSchedule, updateCompetitionSchedule,
+        certificateConfig, updateCertificateConfig, resetCertificateConfig, donorCertificateConfig, updateDonorCertificateConfig, resetDonorCertificateConfig, competitionSchedule, updateCompetitionSchedule,
         isCompetitionCurrentlyOpen, teams, createTeam, updateTeam, deleteTeam, donations, submitDonation, reviewDonation,
         deleteDonation, questionReports, submitQuestionReport, resolveQuestionReport, deleteQuestionReport,
       }}

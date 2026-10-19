@@ -217,7 +217,7 @@ export const CustomMapStudio: React.FC = () => {
         visible: true,
         color: pickedColor,
         fillColor: pickedColor,
-        fillOpacity: 0.35,
+        fillOpacity: String(firstGeomType).includes('Polygon') ? 0.7 : 0.35,
         weight: 2.5,
         geometryType: firstGeomType as any,
         featureCount,

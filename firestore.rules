@@ -87,6 +87,19 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    // Уралдааны шууд явц: оролцогч ӨӨРИЙН явцыг л бичнэ (тогтсон талбар), зөвхөн админ уншина.
+    // (Мэдээлэл зорилготой: албан ёсны үр дүн нь attempts дээр, түүнийг дээрх дүрмээр хамгаална)
+    match /liveSessions/{uid} {
+      allow read: if isAdmin();
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.userId == uid
+        && request.resource.data.keys().hasOnly(['userId', 'name', 'school', 'aimag', 'grade', 'status', 'total',
+             'answered', 'correct', 'score', 'maxScore', 'elapsedMs', 'leaves', 'awayMs', 'away', 'startedAt', 'updatedAt'])
+        && request.resource.data.status in ['in_progress', 'finished']
+        && request.resource.data.total is int && request.resource.data.total <= 100;
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+    }
+
     // Хувилбар, цагийн хуваарь, гэрчилгээний тохиргоо: хэн ч уншина, админ бичнэ
     match /app_settings/{id} { allow read: if true; allow write: if isAdmin(); }
 

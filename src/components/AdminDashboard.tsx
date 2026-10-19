@@ -48,6 +48,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CompetitionTaskPicker } from './CompetitionTaskPicker';
+import { QuestionBankEditor } from './QuestionBankEditor';
+import { LiveCompetitionMonitor } from './LiveCompetitionMonitor';
+import { IntegrityBadge } from './IntegrityBadge';
+import { CompetitionRulesEditor } from './CompetitionRulesEditor';
+import { DonorCertificateStudio, DonationCertificateViewer } from './DonorCertificateStudio';
 import {
   User,
   GradeLevel,
@@ -231,7 +236,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
   };
 
   const [activeTab, setActiveTab] = useState<
-    'verifications' | 'teams' | 'donations' | 'attempts' | 'questions' | 'gis_layers' | 'analytics' | 'competition_tasks'
+    'verifications' | 'teams' | 'donations' | 'attempts' | 'questions' | 'gis_layers' | 'analytics' | 'competition_tasks' | 'edit_questions' | 'live'
   >('verifications');
 
   const [analyticsLayerFilter, setAnalyticsLayerFilter] = useState<string>('all');
@@ -943,6 +948,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-amber-500 focus:outline-none shadow-2xs"
             />
           </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+            <div className="font-bold text-amber-900">⚡ Уралдааны дүрэм: асуултын тоо, хугацаа, оноо</div>
+            <CompetitionRulesEditor />
+            <label className="block">
+              <span className="mb-1 block font-semibold text-slate-700">🖥 Цонх сольж болох дээд тоо (хэтэрвэл уралдаан автоматаар дуусна)</span>
+              <input
+                type="number"
+                min={0}
+                max={20}
+                value={competitionSchedule.maxWindowLeaves ?? 0}
+                onChange={(e) => updateCompetitionSchedule({ maxWindowLeaves: Math.min(20, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs sm:w-60"
+              />
+              <span className="mt-1 block text-[11px] text-slate-600">
+                0 = дуусгахгүй, зөвхөн бүртгэнэ (анхдагч). Жишээ нь 3 гэвэл 4 дэх шилжилтээр уралдаан дуусна. Уралдаан бүтэн дэлгэцээр эхэлж, цонх
+                солих бүр админы «📡 Шууд хяналт» болон оролдлогын бүртгэлд харагдана. Мэдэгдэл, санамсаргүй товшилтоос үүссэн 0.7 секундээс богино
+                фокус алдалтыг тооцохгүй.
+              </span>
+            </label>
+            <p className="text-[11px] leading-relaxed text-slate-700">
+              Оноо = суурь оноо × (1 + урамшуулал × үлдсэн хугацаа / нийт хугацаа). Тэр даруй зөв хариулбал суурь оноо +{' '}
+              {competitionSchedule.speedBonusPercent ?? 50}%, цаг дуусах мөчид зөв хариулбал зөвхөн суурь оноо, буруу хариулт 0. Оноо тэнцвэл{' '}
+              <strong>нийт хугацаа бага</strong> нь дээгүүр байрлана. 0% болговол хурдны урамшуулал унтарна.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -1041,6 +1072,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
           }`}
         >
           <span>🏆 Уралдааны даалгавар</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('live')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 transition-colors cursor-pointer ${
+            activeTab === 'live'
+              ? 'border-rose-600 text-rose-700 font-bold bg-rose-50/60'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <span>📡 Шууд хяналт</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('edit_questions')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 transition-colors cursor-pointer ${
+            activeTab === 'edit_questions'
+              ? 'border-amber-600 text-amber-700 font-bold bg-amber-50/60'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <span>✏️ Даалгавар засах</span>
         </button>
 
         <button
@@ -1880,6 +1931,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
       {/* TAB: Donations & Appreciation Certificates */}
       {activeTab === 'donations' && (
         <div className="space-y-4">
+          {/* Хандивлагчид өгөх батламжийн загвар: хандив баталгаажуулахаас өмнө ч харж, засна */}
+          <DonorCertificateStudio />
+
           {/* Top Banner & Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4 shadow-xs">
@@ -2671,6 +2725,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
                         <td className="px-3 py-3 text-slate-700">{att.school}</td>
                         <td className="px-3 py-3 font-mono font-bold text-amber-700">
                           {att.totalScore} / {att.maxScore} ({att.percentage}%)
+                          <IntegrityBadge report={att.integrity} />
                         </td>
                         <td className="px-3 py-3">
                           {att.isArchived ? (
@@ -3757,6 +3812,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenAuth }) =>
           );
         })()}
 
+      {activeTab === 'live' && <LiveCompetitionMonitor />}
+      {viewingDonationForCert && (
+        <DonationCertificateViewer
+          record={{
+            id: viewingDonationForCert.id,
+            donorName: viewingDonationForCert.donorName,
+            donorOrg: viewingDonationForCert.donorOrg,
+            amountNote: viewingDonationForCert.amount ? `${viewingDonationForCert.amount.toLocaleString()} ₮` : undefined,
+            wishesNote: viewingDonationForCert.wishesNote,
+            certificateNumber: viewingDonationForCert.certificateNumber || 'DONOR-2026-CERT',
+            issuedAt: viewingDonationForCert.reviewedAt || viewingDonationForCert.submittedAt,
+          }}
+          onClose={() => setViewingDonationForCert(null)}
+        />
+      )}
+      {activeTab === 'edit_questions' && <QuestionBankEditor />}
       {activeTab === 'competition_tasks' && <CompetitionTaskPicker />}
 
       {/* User Profile Editor Modal for Admin */}

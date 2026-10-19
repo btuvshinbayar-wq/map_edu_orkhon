@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { pointsForAnswer, maxPointsForQuestion, resolveCompetitionRules, formatDuration, formatMinutes, type CompetitionRules } from '../lib/scoring';
+import { useIntegrity } from '../lib/useIntegrity';
+import { normalizeMaxLeaves } from '../lib/integrity';
 import confetti from 'canvas-confetti';
 import {
   Clock,
@@ -44,6 +47,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
     recordTaskAttempt,
     isCompetitionCurrentlyOpen,
     competitionSchedule,
+    reportLive,
   } = useApp();
 
   // Ангилал: хэрэглэгч зөвхөн өөрийн ангилалд (9, 12, багш) оролцоно.
@@ -57,6 +61,19 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
     g && allowedGrades.includes(g) ? g : allowedGrades[0] || '9';
 
   const [selectedGrade, setSelectedGrade] = useState<GradeLevel>(pickGrade(overrideGrade));
+
+  // Уралдааны дүрэм: асуултын тоо, нэг асуултын хугацаа. Ангилал тус бүрт өөр байж болно (админ тохируулна).
+  // Уралдаан эхэлмэгц дүрмийг "түгжинэ": явцад админ тохиргоо өөрчилсөн ч энэ оролцогчид нөлөөлөхгүй.
+  const [lockedRules, setLockedRules] = useState<CompetitionRules | null>(null);
+  const liveRules = resolveCompetitionRules(competitionSchedule, selectedGrade);
+  const rules = lockedRules ?? liveRules;
+  const scoring = { secondsPerQuestion: rules.secondsPerQuestion, speedBonusPercent: rules.speedBonusPercent };
+  const qStartRef = useRef(Date.now()); // тухайн асуултыг харуулсан мөч
+  const quizStartRef = useRef(Date.now()); // уралдааныг бодитоор эхэлсэн мөч
+  const timedScore = (ok: boolean, base: number) => {
+    const ms = Math.min(scoring.secondsPerQuestion * 1000, Math.max(0, Date.now() - qStartRef.current));
+    return { timeTakenMs: ms, pointsEarned: pointsForAnswer(base, ok, ms, scoring) };
+  };
   const [teamNameInput, setTeamNameInput] = useState<string>(currentUser?.teamName || 'Шонхор баг');
   const [teamMembersInput, setTeamMembersInput] = useState<string>(currentUser?.teamMembers || '3 гишүүн');
 
@@ -68,7 +85,12 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
   const [feedbackItem, setFeedbackItem] = useState<{ id: string; correct: boolean } | null>(null);
 
   // Time & Scoring
-  const [timeLeft, setTimeLeft] = useState(30); // 30s per question
+  const [timeLeft, setTimeLeft] = useState(liveRules.secondsPerQuestion);
+  // Уралдаан "Эхлэх" товчийг дарсны дараа л эхэлнэ (хугацаа, бүтэн дэлгэц, цонх солилтын хяналт)
+  const [started, setStarted] = useState(false);
+  const finishedRef = useRef(false);
+  const [awayNotice, setAwayNotice] = useState<string | null>(null);
+  const maxLeaves = normalizeMaxLeaves(competitionSchedule.maxWindowLeaves);
   const [answersRecord, setAnswersRecord] = useState<AnswerRecord[]>([]);
   const [isCompleted, setIsCompleted] = useState(false);
   const [finalAttempt, setFinalAttempt] = useState<CompetitionAttempt | null>(null);
@@ -90,7 +112,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
     // Зөвхөн тухайн ангилалд зориулсан даалгавар. Өөр ангиллын даалгаврыг орлуулж өгөхгүй.
     const pool = matchingCustom;
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, Math.min(10, shuffled.length));
+    const selectedQuestions = shuffled.slice(0, Math.min(liveRules.questionCount, shuffled.length));
 
     setQuestions(selectedQuestions);
     setCurrentIndex(0);
@@ -100,30 +122,89 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
     setAnswersRecord([]);
     setIsCompleted(false);
     setFinalAttempt(null);
-    setTimeLeft(30);
+    setLockedRules(null);
+    setTimeLeft(liveRules.secondsPerQuestion);
+    qStartRef.current = Date.now();
+    quizStartRef.current = Date.now();
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !(started && !isCompleted)) {
       startQuiz(selectedGrade);
+      setStarted(false);
+      finishedRef.current = false;
     }
-  }, [isOpen, selectedGrade, customQuestions.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, selectedGrade, customQuestions.length, liveRules.questionCount]);
+
+  // Цонх солилт: уралдаан эхэлсэн, дуусаагүй хугацаанд л хянана
+  const integrity = useIntegrity({
+    active: isOpen && started && !isCompleted,
+    question: currentIndex,
+    maxLeaves,
+    fullscreenOnStart: true,
+    onLeave: (ev, count) =>
+      setAwayNotice(
+        `Та цонхоос гарсан тул бүртгэгдлээ (${formatDuration(ev.ms)}). Нийт ${count} удаа${maxLeaves > 0 ? ` / зөвшөөрөгдсөн ${maxLeaves}` : ''}.`,
+      ),
+    onLimit: () => handleFinishQuiz('limit'),
+  });
+
+  // Дараах: хуудсыг санамсаргүй шинэчлэх/хаахаас сэргийлнэ
+  useEffect(() => {
+    if (!(isOpen && started && !isCompleted)) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [isOpen, started, isCompleted]);
+
+  useEffect(() => {
+    if (!awayNotice) return;
+    const t = setTimeout(() => setAwayNotice(null), 8000);
+    return () => clearTimeout(t);
+  }, [awayNotice]);
 
   // Timer countdown
   useEffect(() => {
-    if (!isOpen || hasAnswered || isCompleted || questions.length === 0) return;
+    if (!isOpen || !started || hasAnswered || isCompleted || questions.length === 0) return;
 
     if (timeLeft <= 0) {
       handleTimeout();
       return;
     }
 
+    // Цагийг ХОЛБОГДСОН цагаар (Date.now) тооцно: өөр таб руу шилжихэд хөтөч setInterval-ийг удаашруулдаг тул
+    // тоолуур зогсож "хугацаа авах" боломжгүй байх ёстой
     const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
+      const elapsed = Math.floor((Date.now() - qStartRef.current) / 1000);
+      setTimeLeft(Math.max(0, scoring.secondsPerQuestion - elapsed));
+    }, 500);
 
     return () => clearInterval(timer);
-  }, [isOpen, timeLeft, hasAnswered, isCompleted, questions.length]);
+  }, [isOpen, started, timeLeft, hasAnswered, isCompleted, questions.length]);
+
+  // Админы шууд хяналтад явцаа мэдээлнэ: эхлэх, асуулт бүрийн дараа, дуусах үед
+  useEffect(() => {
+    if (!isOpen || !started || questions.length === 0 || !currentUser || currentUser.role === 'admin') return;
+    if (!(currentUser.status === 'approved' && currentUser.isCompetitionConfirmed !== false)) return;
+    const score = answersRecord.reduce((a, r) => a + r.pointsEarned, 0);
+    reportLive({
+      grade: selectedGrade,
+      status: isCompleted ? 'finished' : 'in_progress',
+      total: questions.length,
+      answered: answersRecord.length,
+      correct: answersRecord.filter((r) => r.isCorrect).length,
+      score,
+      maxScore: questions.reduce((a, q) => a + maxPointsForQuestion(q.points || 10, scoring), 0),
+      elapsedMs: answersRecord.reduce((a, r) => a + r.timeTakenMs, 0),
+      startedAt: quizStartRef.current,
+      leaves: integrity.leaves,
+      awayMs: integrity.awayMs,
+      away: integrity.isAway,
+      name: selectedGrade === 'team' ? currentUser.teamName || undefined : undefined,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, started, questions, answersRecord.length, isCompleted, integrity.leaves, integrity.isAway]);
 
   if (!isOpen) return null;
 
@@ -254,7 +335,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       category: currentQ?.category || 'mongolia',
       userSelectionId: 'TIMEOUT',
       isCorrect: false,
-      timeTakenMs: 30000,
+      timeTakenMs: scoring.secondsPerQuestion * 1000,
       pointsEarned: 0,
     };
     setAnswersRecord((prev) => [...prev, record]);
@@ -280,8 +361,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       category: currentQ.category,
       userSelectionId: aimag.id,
       isCorrect,
-      timeTakenMs: (30 - timeLeft) * 1000,
-      pointsEarned: isCorrect ? currentQ.points || 10 : 0,
+      ...timedScore(isCorrect, currentQ.points || 10),
     };
     setAnswersRecord((prev) => [...prev, record]);
   };
@@ -306,8 +386,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       category: currentQ.category,
       userSelectionId: country.id,
       isCorrect,
-      timeTakenMs: (30 - timeLeft) * 1000,
-      pointsEarned: isCorrect ? currentQ.points || 10 : 0,
+      ...timedScore(isCorrect, currentQ.points || 10),
     };
     setAnswersRecord((prev) => [...prev, record]);
   };
@@ -341,8 +420,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       category: currentQ.category,
       userSelectionId: optionId,
       isCorrect,
-      timeTakenMs: (30 - timeLeft) * 1000,
-      pointsEarned: isCorrect ? currentQ.points || 10 : 0,
+      ...timedScore(isCorrect, currentQ.points || 10),
     };
     setAnswersRecord((prev) => [...prev, record]);
   };
@@ -380,8 +458,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       category: currentQ.category,
       userSelectionId: `lat:${guessLat.toFixed(2)},lng:${guessLng.toFixed(2)} (${distanceKm.toFixed(1)}km)`,
       isCorrect,
-      timeTakenMs: (30 - timeLeft) * 1000,
-      pointsEarned: isCorrect ? currentQ.points || 15 : 0,
+      ...timedScore(isCorrect, currentQ.points || 15),
     };
     setAnswersRecord((prev) => [...prev, record]);
   };
@@ -393,27 +470,33 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       setHasAnswered(false);
       setSelectedOptionId(null);
       setFeedbackItem(null);
-      setTimeLeft(30);
+      setTimeLeft(scoring.secondsPerQuestion);
+      qStartRef.current = Date.now();
     } else {
       handleFinishQuiz();
     }
   };
 
   // Complete and save
-  const handleFinishQuiz = () => {
+  const handleFinishQuiz = (reason?: 'limit' | 'abandoned') => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    if (reason) integrity.tracker.markTerminated(reason);
+    integrity.tracker.stop(Date.now()); // гарсан хэвээр байвал мөчлөгийг хааж тайланд оруулна
     setIsCompleted(true);
 
     const totalScore = answersRecord.reduce((acc, curr) => acc + curr.pointsEarned, 0);
-    const maxScore = questions.reduce((acc, curr) => acc + (curr.points || 10), 0);
+    const maxScore = questions.reduce((acc, curr) => acc + maxPointsForQuestion(curr.points || 10, scoring), 0);
+    const totalTimeMs = answersRecord.reduce((acc, curr) => acc + curr.timeTakenMs, 0);
     const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
 
     const mnAnswers = answersRecord.filter((a) => a.category === 'mongolia');
     const mnScore = mnAnswers.reduce((acc, curr) => acc + curr.pointsEarned, 0);
-    const mnMax = questions.filter((q) => q.category === 'mongolia').reduce((acc, q) => acc + (q.points || 10), 0);
+    const mnMax = questions.filter((q) => q.category === 'mongolia').reduce((acc, q) => acc + maxPointsForQuestion(q.points || 10, scoring), 0);
 
     const wdAnswers = answersRecord.filter((a) => a.category === 'world');
     const wdScore = wdAnswers.reduce((acc, curr) => acc + curr.pointsEarned, 0);
-    const wdMax = questions.filter((q) => q.category === 'world').reduce((acc, q) => acc + (q.points || 10), 0);
+    const wdMax = questions.filter((q) => q.category === 'world').reduce((acc, q) => acc + maxPointsForQuestion(q.points || 10, scoring), 0);
 
     if (percentage >= 70) {
       confetti({
@@ -435,11 +518,12 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       grade: selectedGrade,
       teamName: selectedGrade === 'team' ? (currentUser?.teamName || teamNameInput || 'Шонхор баг') : undefined,
       teamMembers: selectedGrade === 'team' ? (currentUser?.teamMembers || teamMembersInput || '3 гишүүн') : undefined,
-      startedAt: new Date(Date.now() - 300000).toISOString(),
+      startedAt: new Date(quizStartRef.current).toISOString(), // бодит эхэлсэн цаг
       completedAt: new Date().toISOString(),
       totalScore,
       maxScore,
       percentage,
+      totalTimeMs,
       mongoliaScore: mnScore,
       mongoliaMaxScore: mnMax,
       mongoliaCount: mnAnswers.length,
@@ -447,9 +531,27 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       worldMaxScore: wdMax,
       worldCount: wdAnswers.length,
       answers: answersRecord,
+      integrity: integrity.tracker.report(),
     });
 
     setFinalAttempt(attempt);
+  };
+
+  const beginQuiz = () => {
+    setLockedRules(liveRules); // эхэлсэн мөчийн дүрмийг түгжинэ
+    finishedRef.current = false;
+    qStartRef.current = Date.now();
+    quizStartRef.current = Date.now();
+    setTimeLeft(liveRules.secondsPerQuestion);
+    setStarted(true); // бүтэн дэлгэцэд орох ба хяналт эхлэх нь useIntegrity-д (хэрэглэгчийн товшилтын дотор)
+  };
+
+  const requestClose = () => {
+    if (started && !isCompleted) {
+      if (confirm('Уралдаанаас гарвал оролдлого дуусч, зөвхөн хариулсан хэсгийн оноо бүртгэгдэнэ. Гарах уу?')) handleFinishQuiz('abandoned');
+      return;
+    }
+    onClose();
   };
 
   const getCategoryTitle = (g: GradeLevel) => {
@@ -465,9 +567,65 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
     }
   };
 
+  // Эхлэхээс өмнөх дэлгэц: дүрэм, анхааруулга. "Эхлэх" товчийг дармагц хугацаа явж, бүтэн дэлгэцэд орно
+  if (!started && !isCompleted) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+        <div className="relative w-full max-w-lg space-y-4 rounded-2xl border border-amber-200 bg-white p-6 shadow-2xl" data-testid="intro">
+          <button onClick={onClose} className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer" aria-label="Хаах">
+            <X className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+              <Trophy className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">Уралдаанд бэлэн үү?</h3>
+              <p className="text-xs text-slate-600">{getCategoryTitle(selectedGrade)}</p>
+            </div>
+          </div>
+          <ul className="space-y-1.5 rounded-xl bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-700">
+            <li>
+              📝 <strong>{questions.length} даалгавар</strong>, даалгавар бүрт <strong>{scoring.secondsPerQuestion} секунд</strong> (нийт ойролцоогоор{' '}
+              {formatMinutes(questions.length * scoring.secondsPerQuestion)}).
+            </li>
+            <li>⚡ Зөв хариултыг хурдан хийх тусам өндөр оноо авна (дээд тал нь +{scoring.speedBonusPercent}%).</li>
+            <li>
+              🖥 Уралдаан <strong>бүтэн дэлгэцээр</strong> явагдана. Эхэлсний дараа өөр цонх, таб, апп руу шилжихэд хугацаа <strong>зогсохгүй</strong> бөгөөд
+              шилжсэн бүх тохиолдол админд шууд харагдаж бүртгэгдэнэ.
+            </li>
+            {maxLeaves > 0 && (
+              <li className="font-semibold text-rose-700">
+                ⛔ Цонх {maxLeaves} удаагаас илүү сольвол уралдаан автоматаар дуусна.
+              </li>
+            )}
+            <li>🚫 Хуулах, буулгах, баруун товшилт хаалттай. Уралдаанаас гарвал оролдлого дуусна.</li>
+          </ul>
+          <button
+            type="button"
+            onClick={beginQuiz}
+            className="w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-slate-950 shadow-xs hover:bg-amber-400 cursor-pointer"
+          >
+            Уралдааныг эхлүүлэх
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-2 sm:p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xl text-slate-800 max-h-[96vh] flex flex-col">
+      <div className={`relative w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xl text-slate-800 max-h-[96vh] flex flex-col ${started && !isCompleted ? 'select-none' : ''}`}>
+        {awayNotice && started && !isCompleted && (
+          <button
+            type="button"
+            onClick={() => setAwayNotice(null)}
+            role="alert"
+            className="absolute left-1/2 top-3 z-20 max-w-[92%] -translate-x-1/2 rounded-xl border border-rose-300 bg-rose-600 px-4 py-2.5 text-center text-xs font-bold text-white shadow-lg cursor-pointer"
+          >
+            ⚠ {awayNotice} <span className="ml-1 underline">Ойлголоо</span>
+          </button>
+        )}
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
           <div className="flex items-center gap-3">
@@ -496,8 +654,31 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
           </div>
 
           <div className="flex items-center gap-3 self-end sm:self-auto">
+            {/* Цонх солилтын тоолуур (оролцогч өөрөө ч харна) */}
+            {started && !isCompleted && (
+              <div className="flex items-center gap-1.5" data-testid="integrity-chip">
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${
+                    integrity.leaves === 0 ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-rose-300 bg-rose-50 text-rose-700'
+                  }`}
+                  title="Өөр цонх, таб руу шилжсэн тоо"
+                >
+                  🖥 Цонх сольсон: {integrity.leaves}
+                  {maxLeaves > 0 ? ` / ${maxLeaves}` : ''}
+                </span>
+                {!integrity.fullscreen && typeof document !== 'undefined' && !!document.documentElement.requestFullscreen && (
+                  <button
+                    type="button"
+                    onClick={() => void integrity.enterFullscreen()}
+                    className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  >
+                    ⛶ Бүтэн дэлгэц
+                  </button>
+                )}
+              </div>
+            )}
             {/* 4 Category Switcher Pills */}
-            {!isCompleted && allowedGrades.length > 1 && (
+            {!isCompleted && !started && allowedGrades.length > 1 && (
               <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
                 {allowedGrades.map((grade) => (
                   <button
@@ -533,8 +714,9 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
             )}
 
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+              aria-label="Уралдаанаас гарах"
             >
               <X className="h-5 w-5" />
             </button>

@@ -272,6 +272,10 @@ export interface CompetitionAttempt {
   totalScore: number;
   maxScore: number;
   percentage: number;
+  /** Бүх асуултад зарцуулсан нийт хугацаа (мс). Оноо тэнцвэл бага нь дээгүүр */
+  totalTimeMs?: number;
+  /** Цонх сольсон, бүтэн дэлгэцээс гарсан зэрэг бүртгэл */
+  integrity?: IntegrityReport;
   mongoliaScore: number;
   mongoliaMaxScore: number;
   mongoliaCount: number;
@@ -329,6 +333,10 @@ export interface ActiveGisLayer {
   /** Полигоныг атрибутын утгаар нь өөр өөр өнгөөр дүүргэх: багана ба утга бүрийн өнгө */
   colorByField?: string;
   colorMap?: Record<string, string>;
+  /** 'distinct' = обьект бүр өөр өнгө (полигонд анхдагч), 'single' = нэг өнгө, 'column' = баганаар */
+  colorMode?: 'distinct' | 'single' | 'column';
+  colorSeed?: number;
+  featureColorOverrides?: Record<string, string>;
 }
 
 export interface LayerUsageStat {
@@ -375,7 +383,17 @@ export interface CompetitionScheduleConfig {
   mode: 'open' | 'closed' | 'scheduled';
   startTime: string; // ISO or datetime-local string e.g. "2026-10-10T10:00"
   endTime: string; // ISO or datetime-local string e.g. "2026-10-10T18:00"
-  durationMinutesPerQuestion: number; // default 30 seconds or custom
+  durationMinutesPerQuestion: number; // (хуучин нэр) default 30
+  /** Нэг асуултад өгөх хугацаа, секунд (анхдагч 30) */
+  secondsPerQuestion?: number;
+  /** Хурдан зөв хариултын нэмэлт оноо, суурь оноонд хувиар (анхдагч 50) */
+  speedBonusPercent?: number;
+  /** Нэг оролдлогод өгөх асуултын тоо (анхдагч 10) */
+  questionsPerAttempt?: number;
+  /** Ангилал тус бүрийн тусгай тохиргоо (хоосон бол нийтийн тохиргоог хэрэглэнэ) */
+  categorySettings?: Partial<Record<'9' | '12' | 'teacher' | 'team', { questionCount?: number; secondsPerQuestion?: number }>>;
+  /** Цонх сольж болох дээд тоо. Давбал уралдаан автоматаар дуусна. 0 = зөвхөн бүртгэнэ (анхдагч) */
+  maxWindowLeaves?: number;
   announcementNote?: string;
 }
 
@@ -399,4 +417,39 @@ export interface QuestionIssueReport {
   resolvedAt?: string;
   resolvedBy?: string;
   adminNote?: string;
+}
+
+
+/** Хандивлагчид өгөх талархлын батламжийн загвар (админ засна, нийтэд ил) */
+export interface DonorCertificateConfig {
+  topLine: string;
+  mainTitle: string;
+  badgeText: string;
+  introText: string;
+  /** **тодруулах текст** гэж бичвэл тодорч харагдана */
+  bodyText: string;
+  thanksText: string;
+  /** Тамганы мөрүүд, `|`-ээр тусгаарлана. {жил} нь одоогийн оноор солигдоно */
+  stampLines: string;
+}
+
+
+/** Уралдааны үед оролцогч цонхоос гарсан нэг удаагийн бүртгэл */
+export interface LeaveEvent {
+  at: number; // ms (Date.now)
+  ms: number; // хэр удаан гарсан
+  kinds: ('hidden' | 'blur' | 'fullscreen_exit')[];
+  question: number; // аль асуултын үед (0-ээс)
+}
+
+/** Уралдааны шударга байдлын бүртгэл: оролцогч өөр цонх руу шилжсэн эсэх */
+export interface IntegrityReport {
+  windowLeaves: number;
+  awayMs: number;
+  events: LeaveEvent[];
+  fullscreenUsed: boolean;
+  /** хуулах/буулгах/баруун товшилт гэх мэт хориглосон үйлдлийн оролдлого */
+  blockedActions: number;
+  terminated: boolean;
+  terminatedReason?: 'limit' | 'abandoned';
 }

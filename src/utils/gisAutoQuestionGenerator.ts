@@ -393,7 +393,8 @@ export function generateComprehensiveGisQuestions(
         // Extract non-name attributes to mention in the question prompt
         const attrSummaryParts: string[] = [];
         Object.entries(maskedProps).forEach(([k, v]) => {
-          if (v && !v.includes('НУУЦЛАГДСАН') && attrSummaryParts.length < 2) {
+          // `_` үсгээр эхэлсэн талбар нь дотоод тооцоолол (жишээ нь _areaKm2) тул асуултад оруулахгүй
+          if (!k.startsWith('_') && v && !v.includes('НУУЦЛАГДСАН') && attrSummaryParts.length < 2) {
             attrSummaryParts.push(`${k}: ${v}`);
           }
         });

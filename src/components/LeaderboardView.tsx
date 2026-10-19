@@ -1,3 +1,4 @@
+import { compareAttempts, formatDuration } from '../lib/scoring';
 import React, { useEffect, useState } from 'react';
 import { Trophy, Search, FileCheck, Users, GraduationCap, MapPin, Globe2, Lock, UserCheck, AlertCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -29,9 +30,9 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
       if (categoryFilter !== 'all' && att.grade !== categoryFilter) continue;
       const key = `${att.grade}:${att.userId || att.id}`;
       const cur = best.get(key);
-      if (!cur || att.totalScore > cur.totalScore) best.set(key, att);
+      if (!cur || compareAttempts(att, cur) < 0) best.set(key, att);
     }
-    const sorted = Array.from(best.values()).sort((a, b) => b.totalScore - a.totalScore);
+    const sorted = Array.from(best.values()).sort(compareAttempts);
     if (categoryFilter !== 'all') return sorted.slice(0, TOP_LIMIT);
     // "Бүгд" харагдацад ангилал бүрийн эхний 10-ыг харуулна
     const perGrade = new Map<string, number>();
@@ -98,7 +99,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
             {!currentUser
-              ? 'Сайтад бүртгүүлснээр Газрын зураг, Сорил, Олимпиад болон Шилдэгүүд цэс рүү орох эрх шууд нээгдэнэ.'
+              ? 'Сайтад бүртгүүлснээр Газрын зураг, Сорил болон Шилдэгүүд цэс рүү орох эрх шууд нээгдэнэ.'
               : 'Админ таны хандах эрхийг түр хаасан байна. Шалгалтын комисс эсвэл багш-админд хандаж эрхээ нээлгэнэ үү.'}
           </p>
         </div>
@@ -179,7 +180,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
       </div>
 
       <p className="text-[11px] text-slate-500">
-        Ангилал тус бүрийн <strong>эхний 10 оролцогчийг</strong> харуулна (оролцогч бүрийн хамгийн өндөр оноотой оролдлого).
+        Ангилал тус бүрийн <strong>эхний 10 оролцогчийг</strong> харуулна (оролцогч бүрийн хамгийн өндөр оноотой оролдлого). Оноо тэнцвэл <strong>хугацаа бага</strong> нь дээгүүр.
       </p>
 
       {/* Leaderboard Table */}
@@ -193,6 +194,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
               <th className="px-4 py-3 font-semibold">Сургууль / Байгууллага</th>
               <th className="px-4 py-3 font-semibold">Аймаг / Хот</th>
               <th className="px-4 py-3 font-semibold">Нийт оноо</th>
+              <th className="px-4 py-3 font-semibold">Хугацаа</th>
               <th className="px-4 py-3 font-semibold">Амжилт</th>
               <th className="px-4 py-3 font-semibold text-right">Батламж</th>
             </tr>
@@ -200,7 +202,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
           <tbody className="divide-y divide-slate-100">
             {filteredAttempts.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
                   Энэ ангилалд одоогоор оролцогчийн дүн бүртгэгдээгүй байна.
                 </td>
               </tr>
@@ -264,6 +266,10 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenAuth }) 
                       <span className="text-[10px] text-slate-400 font-mono ml-1">
                         / {att.maxScore}
                       </span>
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                      {att.totalTimeMs ? formatDuration(att.totalTimeMs) : '—'}
                     </td>
 
                     <td className="px-4 py-3">

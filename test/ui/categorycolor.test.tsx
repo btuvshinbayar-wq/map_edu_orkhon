@@ -35,7 +35,7 @@ describe('Полигоныг агуулгаар нь өнгөөр дүүргэх
       if (opts?.style && data?.features?.length === 6) styles.push(...data.features.map((f: any) => opts.style(f)));
       return (orig as any)(data, opts);
     }) as any);
-    const layer = { ...baseLayer, colorByField: 'type', colorMap };
+    const layer = { ...baseLayer, colorMode: 'column', colorByField: 'type', colorMap };
     const { container } = render(<RealLeafletMap vectorLayers={[layer]} hideLabels={false} />);
     spy.mockRestore();
     expect(styles.map((s) => s.fillColor)).toEqual(['#ff0000', '#ff0000', '#00ff00', '#0000ff', '#0000ff', '#ffff00']);
@@ -51,14 +51,14 @@ describe('Полигоныг агуулгаар нь өнгөөр дүүргэх
       if (opts?.style && data?.features?.length === 6) styles.push(...data.features.map((f: any) => opts.style(f)));
       return (orig as any)(data, opts);
     }) as any);
-    render(<RealLeafletMap vectorLayers={[baseLayer]} hideLabels={false} />);
+    render(<RealLeafletMap vectorLayers={[{ ...baseLayer, colorMode: 'single' }]} hideLabels={false} />);
     spy.mockRestore();
     expect(new Set(styles.map((s) => s.fillColor))).toEqual(new Set(['#999999']));
   });
 
   it('Админы самбар: багана сонгоход өнгө автоматаар оноогдож, гараар засагдана', () => {
     const onChange = vi.fn();
-    const { container } = render(<CategoryColorEditor layer={baseLayer} onChange={onChange} />);
+    const { container } = render(<CategoryColorEditor layer={{ ...baseLayer, colorMode: 'column', colorByField: 'type', colorMap: autoColorMap(geojson, 'type') }} onChange={onChange} />);
     const select = container.querySelector('select')!;
     // "name" (обьект бүрт өөр) санал болгогдохгүй, "type" санал болгогдоно
     const opts = Array.from(select.querySelectorAll('option')).map((o) => o.value);
@@ -74,7 +74,7 @@ describe('Полигоныг агуулгаар нь өнгөөр дүүргэх
 
   it('Идэвхтэй үед өнгө бүрийг гараар солиход зөвхөн тухайн утга өөрчлөгдөнө', () => {
     const onChange = vi.fn();
-    const layer = { ...baseLayer, colorByField: 'type', colorMap: autoColorMap(geojson, 'type') };
+    const layer = { ...baseLayer, colorMode: 'column', colorByField: 'type', colorMap: autoColorMap(geojson, 'type') };
     const { container } = render(<CategoryColorEditor layer={layer} onChange={onChange} />);
     const pickers = container.querySelectorAll('input[type="color"]');
     expect(pickers.length).toBe(4);
@@ -83,8 +83,37 @@ describe('Полигоныг агуулгаар нь өнгөөр дүүргэх
     const changed = Object.entries(update.colorMap).filter(([k, v]) => v !== (layer.colorMap as any)[k]);
     expect(changed.length).toBe(1);
     expect(changed[0][1]).toBe('#123456');
-    // Ангилалыг цуцлах
-    fireEvent.change(container.querySelector('select')!, { target: { value: '' } });
-    expect(onChange.mock.calls[1][0]).toEqual({ colorByField: undefined, colorMap: undefined });
+  });
+
+  it('Полигон давхарга анхдагчаар обьект бүр өөр өнгөтэй, хөрш нь давхцахгүй (газрын зураг дээр)', () => {
+    // Хил залгаа 3 дөрвөлжин + 1 тусдаа
+    const sq = (x: number, y: number) => ({ type: 'Feature', properties: { name: `S${x}${y}` }, geometry: { type: 'Polygon', coordinates: [[[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1], [x, y]]] } });
+    const geo: any = { type: 'FeatureCollection', features: [sq(100, 45), sq(101, 45), sq(100, 46), sq(101, 46), sq(105, 50)] };
+    const layer: any = { ...baseLayer, geojson: geo, featureCount: 5 };
+    const styles: any[] = [];
+    const orig = L.geoJSON;
+    const spy = vi.spyOn(L, 'geoJSON').mockImplementation(((data: any, opts: any) => {
+      if (opts?.style && data?.features?.length === 5) styles.push(...data.features.map((f: any) => opts.style(f)));
+      return (orig as any)(data, opts);
+    }) as any);
+    render(<RealLeafletMap vectorLayers={[layer]} hideLabels={false} />);
+    spy.mockRestore();
+    const c = styles.map((s) => s.fillColor);
+    expect(c.length).toBe(5);
+    expect(c[0]).not.toBe(c[1]); expect(c[0]).not.toBe(c[2]); expect(c[1]).not.toBe(c[3]); expect(c[2]).not.toBe(c[3]);
+    expect(c.every((x) => x !== '#999999')).toBe(true); // нэг өнгө биш
+  });
+
+  it('Редактор: "Нэг өнгө" болон "Обьект бүр өөр өнгө" горимыг сольж, обьект бүрийн өнгийг гараар засна', () => {
+    const onChange = vi.fn();
+    const { container } = render(<CategoryColorEditor layer={baseLayer} onChange={onChange} />);
+    // анхдагч горим: обьект бүр өөр өнгө, 6 обьектийн өнгө сонгогч
+    expect(container.querySelectorAll('input[type="color"]').length).toBe(6);
+    fireEvent.click(screen.getByLabelText(/Нэг өнгө/));
+    expect(onChange).toHaveBeenLastCalledWith({ colorMode: 'single' });
+    fireEvent.change(container.querySelectorAll('input[type="color"]')[2], { target: { value: '#abcdef' } });
+    expect(onChange.mock.calls.at(-1)![0].featureColorOverrides).toEqual({ '2': '#abcdef' });
+    fireEvent.click(screen.getByText(/Өнгийг дахин холих/));
+    expect(typeof onChange.mock.calls.at(-1)![0].colorSeed).toBe('number');
   });
 });

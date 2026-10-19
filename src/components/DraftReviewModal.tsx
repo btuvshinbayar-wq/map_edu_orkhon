@@ -4,6 +4,8 @@ import type { Question } from '../types';
 import { GIS_AUTO_TASK_TYPE_LABELS, detectQuestionGisTaskType } from '../utils/gisAutoQuestionGenerator';
 import { ShpContourViewer } from './ShpContourViewer';
 import { InteractiveMapPinQuestion } from './InteractiveMapPinQuestion';
+import { BulkEditPanel } from './BulkEditPanel';
+import { groupQuestions } from '../lib/questionGroups';
 import {
   editTitle, editExplanation, editPoints, editOptionText, setCorrectOption, editPinTolerance, validateDraft,
 } from '../lib/draftEdit';
@@ -13,16 +15,19 @@ interface Props {
   initial: Question[];
   onConfirm: (questions: Question[]) => void;
   onCancel: () => void;
+  confirmLabel?: string;
 }
 
 /**
  * Үүсгэсэн даалгаврыг САНД НЭМЭХЭЭС ӨМНӨ урьдчилан харж, засаж, хэрэггүйг нь хасах цонх.
  * Нэмэхээр сонгосон бүх даалгавар шалгалтыг давсан байж л "Санд нэмэх" идэвхжинэ.
  */
-export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, onCancel }) => {
+export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, onCancel, confirmLabel = 'Санд нэмэх' }) => {
   const [items, setItems] = useState<Question[]>(initial);
   const [keep, setKeep] = useState<Set<string>>(() => new Set(initial.map((q) => q.id)));
   const [open, setOpen] = useState<string | null>(null);
+  const [bulkGroup, setBulkGroup] = useState<string>('');
+  const [showBulk, setShowBulk] = useState(initial.length > 3);
 
   const update = (id: string, fn: (q: Question) => Question) =>
     setItems((prev) => prev.map((q) => (q.id === id ? fn(q) : q)));
@@ -59,6 +64,14 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
+  const groups = useMemo(() => groupQuestions(items.filter((q) => keep.has(q.id))), [items, keep]);
+  const bulkIds = useMemo(() => {
+    if (!bulkGroup) return new Set<string>();
+    if (bulkGroup === '__all') return new Set(items.filter((q) => keep.has(q.id)).map((q) => q.id));
+    return new Set(groups.find((g) => g.key === bulkGroup)?.ids ?? []);
+  }, [bulkGroup, groups, items, keep]);
+  const bulkTargets = useMemo(() => items.filter((q) => bulkIds.has(q.id)), [items, bulkIds]);
+
   const input = 'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-sky-500 focus:outline-none';
 
   return (
@@ -94,6 +107,42 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
             </button>
           </span>
         </div>
+
+        {items.length > 1 && (
+          <div className="border-b border-slate-100 bg-white px-4 py-2 text-xs">
+            <button type="button" onClick={() => setShowBulk((x) => !x)} className="font-bold text-violet-800 hover:underline cursor-pointer">
+              {showBulk ? '▾' : '▸'} Бөөнөөр засах: нэг төрлийн даалгаврын асуултыг нэг дор солих
+            </button>
+            {showBulk && (
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {groups.map((g) => (
+                    <button
+                      key={g.key}
+                      type="button"
+                      onClick={() => setBulkGroup(g.key)}
+                      className={`rounded-lg border px-2.5 py-1 font-semibold cursor-pointer ${bulkGroup === g.key ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      {g.label} ({g.ids.length})
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setBulkGroup('__all')}
+                    className={`rounded-lg border px-2.5 py-1 font-semibold cursor-pointer ${bulkGroup === '__all' ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    Бүгд ({selected.length})
+                  </button>
+                </div>
+                <BulkEditPanel
+                  targets={bulkTargets}
+                  scopeLabel={bulkGroup === '__all' ? 'бүх сонгосон даалгавар' : groups.find((g) => g.key === bulkGroup)?.label || ''}
+                  onApply={(fn) => setItems((prev) => prev.map((q) => (bulkIds.has(q.id) ? fn(q) : q)))}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex-1 space-y-2 overflow-y-auto p-3">
           {items.map((q, i) => {
@@ -259,7 +308,7 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
               className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-40 cursor-pointer"
             >
               <CheckCircle2 className="h-4 w-4" />
-              Санд нэмэх ({selected.length})
+              {confirmLabel} ({selected.length})
             </button>
           </div>
         </div>

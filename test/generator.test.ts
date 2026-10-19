@@ -116,3 +116,31 @@ const pin = firstOfType.get('point_placement');
 assert(editPinTolerance(pin, 120).mapPinData.allowedDistanceKm === 120, 'цэг байрлуулахад зөвшөөрөгдөх зайг засна');
 assert(validateDraft(editTitle(pin, '  ')) !== null, 'хоосон асуултын текстийг илрүүлнэ');
 assert(editPoints(pin, 25.4).points === 25, 'оноо засагдсан');
+
+// ---- Загвар: нэг төрлийн даалгаврын асуултыг нэг дор засах ----
+import { deriveTemplate, applyTemplate, render, commonTemplate, missingPlaceholders, findReplace, deriveVars } from '../src/lib/questionTemplates.ts';
+const tTypes = new Map<string, any[]>();
+for (const q of all as any[]) { const t = q.gisAutoTaskType; tTypes.set(t, [...(tTypes.get(t) ?? []), q]); }
+for (const [type, qs] of tTypes) {
+  // 1) загварыг утгаар нь буцааж дүүргэхэд эх текстийг яг гаргана
+  const rt = qs.every((q) => { const { template, vars } = deriveTemplate(q); return render(template.title, vars) === q.title && render(template.subtitle, vars) === q.subtitle && render(template.explanation, vars) === q.explanation; });
+  assert(rt, `[${type}] ${qs.length} даалгавар: загвар → буцааж дүүргэхэд эх текст яг таарна`);
+  // 2) нэг төрөл, нэг давхарга → бүгд ижил загвартай (нэг удаа засахад хангалттай)
+  const sameLayer = qs.filter((q) => deriveVars(q)['давхарга'] === 'Нуур');
+  const c = commonTemplate(sameLayer);
+  if (!c.uniform) { const m = new Map<string, string>(); for (const q of sameLayer) { const d = deriveTemplate(q); m.set(d.template.title + ' ‖ ' + d.template.explanation, JSON.stringify(d.vars)); } console.log('   ялгаатай загварууд:', Array.from(m.entries()).slice(0, 3).map(([k, v]) => `\n     ${k}\n     vars=${v}`).join('')); }
+  assert(c.uniform, `[${type}] Нуур давхаргын ${sameLayer.length} даалгавар (гарчиг, дэд гарчиг, тайлбар) бүгд ИЖИЛ загвартай (${c.distinct})`);
+}
+// 3) загварыг нэг удаа засахад бүх даалгавар өөр өөрийнхөө утгаар шинэчлэгдэнэ
+const areaQs = tTypes.get('area')!.filter((q: any) => q.shpContourData?.layerName === 'Нуур');
+const edited = areaQs.map((q: any) => applyTemplate(q, { title: 'Ямар талбайтай вэ? «{нэр}» ({давхарга})' }));
+assert(edited.every((q: any, i: number) => q.title === `Ямар талбайтай вэ? «${deriveVars(areaQs[i])['нэр']}» (Нуур)`), `талбай: ${areaQs.length} даалгаврын асуулт нэг загвараар засагдаж, обьект бүрийн нэр хадгалагдсан`);
+assert(new Set(edited.map((q: any) => q.title)).size === areaQs.length, 'засварын дараа асуулт бүр өөр обьектийн нэртэй хэвээр');
+assert(edited.every((q: any, i: number) => q.explanation === areaQs[i].explanation && JSON.stringify(q.options) === JSON.stringify(areaQs[i].options)), 'тайлбар, хариултын сонголт өөрчлөгдөөгүй');
+assert(missingPlaceholders('{нэр} {дараалал}', areaQs).includes('дараалал'), 'тухайн төрөлд утгагүй placeholder-ийг анхааруулна');
+const fr = findReplace(areaQs[0], 'километр', 'км');
+assert(fr.title === areaQs[0].title || !areaQs[0].title.includes('километр'), 'хайх/солих ажиллана');
+
+// ---- Дотоод тооцооллын талбар (_areaKm2, _lengthKm) асуултад цухуйх ёсгүй ----
+const leaked = (all as any[]).filter((q) => /_areaKm2|_lengthKm/.test(JSON.stringify(q)));
+assert(leaked.length === 0, `дотоод _areaKm2/_lengthKm талбар ${all.length} даалгаврын аль нэгэнд ч цухуйгаагүй (${leaked.length})`);

@@ -472,7 +472,7 @@ export const PuzzleArena: React.FC<PuzzleArenaProps> = ({ onOpenAuth }) => {
                   : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
             >
-              Бүх 9 төрөл ({layerFilteredQuestions.length})
+              Бүх төрөл ({layerFilteredQuestions.length})
             </button>
 
             {GIS_AUTO_TASK_TYPE_LABELS.map((t) => {

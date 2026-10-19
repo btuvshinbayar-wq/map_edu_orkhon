@@ -117,7 +117,7 @@ export function detectBestNameField(features: any[]): string | null {
   const allKeysSet = new Set<string>();
   sampleFeatures.forEach((f) => {
     if (f && f.properties && typeof f.properties === 'object') {
-      Object.keys(f.properties).forEach((k) => allKeysSet.add(k));
+      Object.keys(f.properties).forEach((k) => { if (!k.startsWith('_')) allKeysSet.add(k); });
     }
   });
 
@@ -202,7 +202,7 @@ export function getLayerAttributeColumns(
   features.slice(0, 20).forEach((f) => {
     if (f?.properties && typeof f.properties === 'object') {
       Object.keys(f.properties).forEach((k) => {
-        if (k !== 'centerCoords') keysSet.add(k);
+        if (k !== 'centerCoords' && !k.startsWith('_')) keysSet.add(k);
       });
     }
   });
@@ -254,7 +254,7 @@ export function extractFeatureName(
     }
   }
 
-  const keys = Object.keys(properties);
+  const keys = Object.keys(properties).filter((k) => !k.startsWith('_'));
 
   // 2. Check PRIORITY_NAME_KEYS (case-insensitive)
   for (const priKey of PRIORITY_NAME_KEYS) {
@@ -739,7 +739,7 @@ export function maskFeatureProperties(
   const targetLower = (targetName || '').trim().toLowerCase();
 
   Object.entries(raw).forEach(([k, val]) => {
-    if (k === 'id' || k === 'centerCoords') return;
+    if (k === 'id' || k === 'centerCoords' || k.startsWith('_')) return; // `_` = дотоод тооцоолол
     const keyUpper = k.toUpperCase();
     const valStr = String(val ?? '').trim();
     realProps[k] = val;

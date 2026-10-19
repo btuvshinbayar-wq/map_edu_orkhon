@@ -422,146 +422,6 @@ export const GisContourQuestionGenerator: React.FC = () => {
     setTimeout(() => setSuccessToast(null), 4500);
   };
 
-  // Handler: Batch Generate Questions for Filtered (or All) features in this layer!
-  const handleBatchGenerateAll = () => {
-    const sourceList = filteredFeatures.length > 0 ? filteredFeatures : indexedFeatures;
-    if (!currentLayer || sourceList.length === 0) return;
-
-    const activeField = selectedNameField || autoDetectedNameField;
-    const activeFieldUpper = (activeField || '').toUpperCase();
-    const allUniqueNames = Array.from(
-      new Set(indexedFeatures.map((item) => item.name).filter(Boolean))
-    );
-    // Cap batch generation to 100 features at once so question bank remains fast
-    const targetSlice = sourceList.slice(0, 100);
-
-    const isRangeFiltered =
-      minMetricInput.trim() !== '' || maxMetricInput.trim() !== '';
-    const rangeDesc = isRangeFiltered
-      ? layerMetricInfo.mode === 'length'
-        ? ` (Урт: ${minMetricInput || '0'}–${maxMetricInput || '∞'} км)`
-        : layerMetricInfo.mode === 'area'
-        ? ` (Талбай: ${minMetricInput || '0'}–${maxMetricInput || '∞'} км²)`
-        : ''
-      : '';
-
-    const generatedBatch: Question[] = targetSlice.map(
-      ({ feature: feat, originalIdx: idx, name: fName, lengthKm, areaKm2, geomType }) => {
-        const fNameLower = fName.toLowerCase();
-        const singleGeo = {
-          type: 'FeatureCollection',
-          features: [feat],
-        };
-
-        // Distractors from pre-computed unique sibling names (O(1) sampling)
-        const siblingPool = allUniqueNames.filter((n) => n !== fName);
-        const shuffledSiblings: string[] = siblingPool
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 3);
-
-        const fallbackDistractors = [
-          'Архангай аймаг',
-          'Завхан аймаг',
-          'Булган аймаг',
-          'Увс аймаг',
-          'Хөвсгөл аймаг',
-          'Өмнөговь аймаг',
-        ].filter((n) => n !== fName);
-
-        while (shuffledSiblings.length < 3) {
-          const fb = fallbackDistractors.find(
-            (d) => !shuffledSiblings.includes(d) && d !== fName
-          );
-          if (fb) shuffledSiblings.push(fb);
-          else shuffledSiblings.push(`Сонголт ${shuffledSiblings.length + 1}`);
-        }
-
-        const allOpts: string[] = [fName, ...shuffledSiblings].sort(
-          () => Math.random() - 0.5
-        );
-
-        // Mask properties
-        const raw = feat.properties || {};
-        const real: Record<string, any> = {};
-        const masked: Record<string, string> = {};
-
-        Object.entries(raw).forEach(([k, val]) => {
-          if (k === 'id' || k === 'centerCoords') return;
-          const keyUpper = k.toUpperCase();
-          const valStr = String(val ?? '').trim();
-          real[k] = val;
-          if (
-            keyUpper === activeFieldUpper ||
-            keyUpper.includes('NAME') ||
-            keyUpper.includes('НЭР') ||
-            keyUpper.includes('NER') ||
-            keyUpper.includes('TITLE') ||
-            keyUpper.includes('CENTER') ||
-            keyUpper.includes('ТӨВ') ||
-            keyUpper.includes('AIMAG') ||
-            keyUpper.includes('АЙМАГ') ||
-            keyUpper.includes('SUM') ||
-            keyUpper.includes('SOUM') ||
-            keyUpper.includes('СУМ') ||
-            keyUpper.includes('ADM1') ||
-            keyUpper.includes('ADM2') ||
-            (fNameLower.length > 2 && valStr.toLowerCase().includes(fNameLower))
-          ) {
-            masked[k] = '[ ? ? ? НУУЦЛАГДСАН ]';
-          } else {
-            masked[k] = valStr;
-          }
-        });
-
-        const metricHint =
-          geomType === 'LineString' || geomType === 'MultiLineString'
-            ? `Урт: ${lengthKm.toLocaleString()} км`
-            : geomType === 'Polygon' || geomType === 'MultiPolygon'
-            ? `Талбай: ${areaKm2.toLocaleString()} км²`
-            : 'Бодит координатын байршил';
-
-        return {
-          id: `custom_batch_${Date.now()}_${idx}_${Math.random()
-            .toString(36)
-            .substring(2, 6)}`,
-          category: 'mongolia' as const,
-          gradeLevels: selectedGrades,
-          type: 'shp_contour_guess' as const,
-          title: `🔍 [Бодит SHP Обьект] Зурагт өгөгдсөн обьект аль ${categoryLabel} вэ?`,
-          subtitle: `Contour map болон масштабын хэмжээсийг (${metricHint}) шинжлэн таана уу.`,
-          targetName: fName,
-          targetId: feat.properties?.id || `feat_${idx}`,
-          explanation: `${fName} (${metricHint}).`,
-          difficulty: 'medium' as const,
-          points: questionPoints,
-          gisAutoTaskType: 'contour_shape',
-          shpContourData: {
-            featureId: feat.properties?.id || `batch_f_${idx}`,
-            layerName: currentLayer.name,
-            geometryType: (geomType as any) || 'Polygon',
-            geojson: singleGeo,
-            categoryLabel: categoryLabel || 'Аймаг',
-            maskedProperties: masked,
-            realProperties: real,
-            targetName: fName,
-            options: allOpts,
-            hints: [metricHint, 'Бодит координатын хил зааг'],
-          },
-          options: allOpts.map((opt: string, optIdx: number) => ({
-            id: String(optIdx + 1),
-            text: opt,
-            isCorrect: opt.trim() === fName.trim(),
-          })),
-        };
-      }
-    );
-
-    setGenerateNotice(null);
-    setDraft({
-      title: `"${currentLayer.name}" давхаргын шүүгдсэн ${generatedBatch.length} обьектоор${rangeDesc} контур таах даалгавар`,
-      questions: generatedBatch,
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -625,21 +485,6 @@ export const GisContourQuestionGenerator: React.FC = () => {
 
             <button
               type="button"
-              onClick={handleBatchGenerateAll}
-              disabled={!currentLayer || filteredFeatures.length === 0}
-              className="flex items-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Сонгосон давхаргын шүүгдсэн (эсвэл бүх) обьектоор олноор нь даалгавар нэмэх"
-            >
-              <Zap className="h-4 w-4" />
-              <span>
-                {filteredFeatures.length < features.length
-                  ? `Сонгосон давхаргын шүүгдсэн ${filteredFeatures.length} обьектоор олноор нэмэх`
-                  : `Сонгосон давхаргын ${features.length} обьектоор олноор нэмэх`}
-              </span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => {
                 if (!currentLayer) return;
                 // Temporarily filter currentLayer geojson features to only filteredFeatures when admin has applied a search/length/area filter
@@ -688,12 +533,15 @@ export const GisContourQuestionGenerator: React.FC = () => {
                   questions: batchQuestions,
                 });
               }}
-              disabled={!currentLayer || features.length === 0}
+              disabled={!currentLayer || filteredFeatures.length === 0}
               className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Сонгосон давхаргаас сонгосон даалгаврын төрлүүдээр олноор нэмэх"
+              title="Шүүгдсэн обьектуудаас сонгосон даалгаврын төрлүүдээр даалгавар үүсгэж, санд нэмэхээс өмнө урьдчилан харж засна"
             >
               <Plus className="h-4 w-4" />
-              <span>Сонгосон төрлүүдээр ({selectedBatchTaskTypes.length}) олноор нэмэх</span>
+              <span>
+                {filteredFeatures.length < features.length ? `Шүүгдсэн ${filteredFeatures.length}` : `${features.length}`} обьектоор,{' '}
+                {selectedBatchTaskTypes.length} төрлөөр олноор үүсгэх
+              </span>
             </button>
           </div>
         </div>
@@ -908,18 +756,6 @@ export const GisContourQuestionGenerator: React.FC = () => {
 
                 {/* Action buttons: Batch Generate Questions from Filtered Range & Apply to Map */}
                 <div className="pt-1 flex flex-col gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleBatchGenerateAll}
-                    disabled={filteredFeatures.length === 0}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white py-2 px-3 text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                  >
-                    <Zap className="h-3.5 w-3.5 shrink-0" />
-                    <span>
-                      Шүүгдсэн {filteredFeatures.length} обьектоор олноор нь даалгавар үүсгэх
-                    </span>
-                  </button>
-
                   <button
                     type="button"
                     onClick={handleApplyFilterToActiveLayer}

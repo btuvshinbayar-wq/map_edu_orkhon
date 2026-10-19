@@ -1,3 +1,4 @@
+import { resolveCompetitionRules } from '../lib/scoring';
 import React from 'react';
 import {
   Sparkles,
@@ -71,8 +72,8 @@ export const CompetitionHero: React.FC<CompetitionHeroProps> = ({
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed text-center w-full">
             {!currentUser
-              ? 'Сайтад бүртгүүлсэн хэрэглэгчид Газрын зураг, Сорил, Олимпиад болон Шилдэгүүд цэсийг ашиглах эрхтэй. Харин «Уралдаан» цэс рүү зөвхөн уралдаанд оролцохоор Админ баталгаажуулсан оролцогчид нэвтэрнэ.'
-              : `Сайн байна уу, ${currentUser.fullName}! Бүртгүүлсэн хэрэглэгчид зөвхөн Газрын зураг, Сорил, Олимпиад, Шилдэгүүд цэс рүү орох эрхтэй. «Уралдаан» цэс рүү зөвхөн уралдаанд оролцохоор батлагдсан оролцогчид нэвтэрнэ.`}
+              ? 'Сайтад бүртгүүлсэн хэрэглэгчид Газрын зураг, Сорил болон Шилдэгүүд цэсийг ашиглах эрхтэй. Харин «Уралдаан» цэс рүү зөвхөн уралдаанд оролцохоор Админ баталгаажуулсан оролцогчид нэвтэрнэ.'
+              : `Сайн байна уу, ${currentUser.fullName}! Бүртгүүлсэн хэрэглэгчид зөвхөн Газрын зураг, Сорил, Шилдэгүүд цэс рүү орох эрхтэй. «Уралдаан» цэс рүү зөвхөн уралдаанд оролцохоор батлагдсан оролцогчид нэвтэрнэ.`}
           </p>
         </div>
 
@@ -234,6 +235,12 @@ export const CompetitionHero: React.FC<CompetitionHeroProps> = ({
   }
 
   // 4 Official Competition Categories
+  // Ангилал бүрийн асуултын тоо, хугацаа нь админы тохиргооноос
+  const ruleText = (g: string) => {
+    const r = resolveCompetitionRules(competitionSchedule, g);
+    return `${r.questionCount} асуулт · Асуулт тус бүрт ${r.secondsPerQuestion} секунд · хурдан зөв хариулсан өндөр оноо авна`;
+  };
+
   const CATEGORIES = [
     {
       id: '9' as GradeLevel,
@@ -252,7 +259,7 @@ export const CompetitionHero: React.FC<CompetitionHeroProps> = ({
         'Байгалийн бүсүүд & Газарзүйн тогтоц',
         'Дэлхийн томоохон улсууд & тивүүд',
       ],
-      timer: '10 асуулт · Асуулт тус бүрт 30 секунд',
+      timer: ruleText('9'),
     },
     {
       id: '12' as GradeLevel,
@@ -271,7 +278,7 @@ export const CompetitionHero: React.FC<CompetitionHeroProps> = ({
         'Тектоник хавтан, галт уул, газар хөдлөлт',
         'Оюу толгой, Таван толгой, Эрдэнэт орд',
       ],
-      timer: '10 асуулт · Асуулт тус бүрт 30 секунд',
+      timer: ruleText('12'),
     },
     {
       id: 'teacher' as GradeLevel,
@@ -290,7 +297,7 @@ export const CompetitionHero: React.FC<CompetitionHeroProps> = ({
         'Физик & нийгэм эдийн засгийн зүй тогтол',
         'Орон зайн логик & Цогц детектив даалгавар',
       ],
-      timer: '10 асуулт · Асуулт тус бүрт 30 секунд',
+      timer: ruleText('teacher'),
     },
     {
       id: 'team' as GradeLevel,
@@ -309,7 +316,7 @@ export const CompetitionHero: React.FC<CompetitionHeroProps> = ({
         'Цогц зураг-таавар (Puzzle placement)',
         'Багийн гишүүн бүрийн нэртэй албан Батламж',
       ],
-      timer: '10 асуулт · Асуулт тус бүрт 30 секунд',
+      timer: ruleText('team'),
     },
   ];
 
