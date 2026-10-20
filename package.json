@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "tsx test/layerProcessor.test.ts && tsx test/content.test.ts && tsx test/generator.test.ts && tsx test/layerColors.test.ts && tsx test/scoring.test.ts && tsx test/live.test.ts && tsx test/integrity.test.ts && vitest run"
+    "test": "tsx test/layerProcessor.test.ts && tsx test/content.test.ts && tsx test/generator.test.ts && tsx test/layerColors.test.ts && tsx test/scoring.test.ts && tsx test/live.test.ts && tsx test/integrity.test.ts && tsx test/blueprint.test.ts && vitest run"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.0",

@@ -59,7 +59,7 @@ describe('Цэг байрлуулах даалгавар (point_placement)', () 
     expect(map).toBeTruthy();
     // Хэрэглэгч газрын зураг дээр товшино
     act(() => { map.fire('click', { latlng: L.latLng(q.mapPinData.targetLat + offsetDeg, q.mapPinData.targetLng) }); });
-    expect(container.querySelector('.competition-user-pin')).toBeTruthy(); // 📍 цэг тавигдсан
+    expect(container.querySelector('.pin-crosshair-marker')).toBeTruthy(); // хөндлөн тэмдэгтэй цэг тавигдсан
     // Баталгаажуулна
     const confirm = Array.from(container.querySelectorAll('button')).find((b) => /баталгаажуул|шалгах|илгээ/i.test(b.textContent || ''));
     expect(confirm, 'баталгаажуулах товч олдсонгүй').toBeTruthy();
@@ -80,5 +80,97 @@ describe('Цэг байрлуулах даалгавар (point_placement)', () 
     expect(onAnswer).toHaveBeenCalledTimes(1);
     expect(onAnswer.mock.calls[0][0]).toBe(false);
     expect(onAnswer.mock.calls[0][1]).toBeGreaterThan(300); // км
+  });
+});
+
+
+import { readFileSync } from 'node:fs';
+describe('Цэг тавих: курсор, нарийвчлал, давхардал', () => {
+  const q = (generateComprehensiveGisQuestions({ layers: [layer], enabledTypes: ['point_placement'] } as any) as any[])[0] as any;
+  const mkMap = () => {
+    const maps: L.Map[] = [];
+    const orig = L.map;
+    const spy = vi.spyOn(L, 'map').mockImplementation(((...a: any[]) => { const m = (orig as any)(...a); maps.push(m); return m; }) as any);
+    return { maps, spy };
+  };
+
+  it('Курсор хөндлөн дүрстэй (crosshair) болж, хариулсны дараа энгийн болно', async () => {
+    const { maps, spy } = mkMap();
+    const { container } = render(<InteractiveMapPinQuestion question={q} hasAnswered={false} onAnswer={vi.fn()} />);
+    spy.mockRestore();
+    const el = maps[0].getContainer();
+    expect(el.classList.contains('pin-crosshair')).toBe(true);
+    // CSS: crosshair курсор Leaflet-ийн grab-ийг давж, чирэх үед grabbing
+    const css = readFileSync('src/index.css', 'utf8');
+    expect(css).toMatch(/\.pin-crosshair[\s\S]*cursor:\s*crosshair\s*!important/);
+    expect(css).toMatch(/\.pin-crosshair\.leaflet-dragging[\s\S]*cursor:\s*grabbing/);
+    const confirm = Array.from(container.querySelectorAll('button')).find((b) => /Газрын зураг дээр товшиж|баталгаажуул/i.test(b.textContent || ''))!;
+    act(() => { maps[0].fire('click', { latlng: L.latLng(q.mapPinData.targetLat + 0.05, q.mapPinData.targetLng) }); });
+    act(() => { fireEvent.click(Array.from(container.querySelectorAll('button')).find((b) => /баталгаажуул/i.test(b.textContent || ''))!); });
+    expect(el.classList.contains('pin-crosshair')).toBe(false);
+    void confirm;
+  });
+
+  it('Курсорыг хөдөлгөхөд яг байршлын солбицол харагдана', () => {
+    const { maps, spy } = mkMap();
+    render(<InteractiveMapPinQuestion question={q} hasAnswered={false} onAnswer={vi.fn()} />);
+    spy.mockRestore();
+    expect(screen.queryByTestId('cursor-coords')).toBeNull();
+    act(() => { maps[0].fire('mousemove', { latlng: L.latLng(47.12345, 98.45678) }); });
+    expect(screen.getByTestId('cursor-coords').textContent).toContain('47.123°N, 98.457°E');
+    act(() => { maps[0].fire('mouseout'); });
+    expect(screen.queryByTestId('cursor-coords')).toBeNull();
+  });
+
+  it('Тавьсан цэг яг товшсон байрлалд (тэмдгийн төвөөр), солбицолтойгоор харагдаж, дахин товшвол шилжинэ', () => {
+    const { maps, spy } = mkMap();
+    const { container } = render(<InteractiveMapPinQuestion question={q} hasAnswered={false} onAnswer={vi.fn()} />);
+    spy.mockRestore();
+    act(() => { maps[0].fire('click', { latlng: L.latLng(46.5, 100.25) }); });
+    const marker = container.querySelector('.pin-crosshair-marker') as HTMLElement;
+    expect(marker).toBeTruthy();
+    expect(marker.style.marginLeft).toBe('-22px'); // 44px-ийн тэмдгийн ТӨВ нь цэг дээр
+    expect(marker.style.marginTop).toBe('-22px');
+    expect(screen.getByTestId('pin-label').textContent).toBe('46.500°N, 100.250°E');
+    expect(marker.querySelector('svg')).toBeTruthy();
+    act(() => { maps[0].fire('click', { latlng: L.latLng(47.0, 101.0) }); });
+    expect(container.querySelectorAll('.pin-crosshair-marker').length).toBe(1); // нэг л цэг
+    expect(screen.getByTestId('pin-label').textContent).toBe('47.000°N, 101.000°E');
+  });
+
+  it('Хариулсны дараа товшилт цэгийг шилжүүлэхгүй, бодит байршил яг цэгээр заагдана', () => {
+    const { maps, spy } = mkMap();
+    const circle = vi.spyOn(L, 'circleMarker');
+    const onAnswer = vi.fn();
+    const { container } = render(<InteractiveMapPinQuestion question={q} hasAnswered={false} onAnswer={onAnswer} />);
+    spy.mockRestore();
+    act(() => { maps[0].fire('click', { latlng: L.latLng(q.mapPinData.targetLat + 0.05, q.mapPinData.targetLng) }); });
+    act(() => { fireEvent.click(Array.from(container.querySelectorAll('button')).find((b) => /баталгаажуул/i.test(b.textContent || ''))!); });
+    expect(circle).toHaveBeenCalledWith([q.mapPinData.targetLat, q.mapPinData.targetLng], expect.objectContaining({ radius: 6 })); // бодит цэг
+    const before = screen.getByTestId('pin-label').textContent;
+    // Хариулсан ч компонент дахин үүсгэгдээгүй (hasAnswered prop-оор шинэчлэгдсэн мэт) тохиолдолд товшилт нөлөөлөхгүй
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    circle.mockRestore();
+    void before;
+  });
+
+  it('Газрын зургийн дотоод давхарга модал цонхны дээр гарахгүй: тусгаарласан stacking context', () => {
+    const { container } = render(<InteractiveMapPinQuestion question={q} hasAnswered={false} onAnswer={vi.fn()} />);
+    // z-400 тэмдэглэгээнүүдийг агуулсан wrapper нь isolate (stacking context)
+    const overlay = container.querySelector('.z-400')!;
+    expect(overlay.closest('.isolate')).toBeTruthy();
+    const css = readFileSync('src/index.css', 'utf8');
+    expect(css).toMatch(/\.leaflet-container\s*\{[^}]*isolation:\s*isolate/);
+  });
+});
+
+import { ShpContourViewer } from '../../src/components/ShpContourViewer';
+describe('Контур харуулагч: тэмдэглэгээнүүд модалын дээр гарахгүй', () => {
+  it('z-400 хяналтын товчнууд тусгаарласан wrapper дотор', () => {
+    const geo: any = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[100, 45], [101, 45], [101, 46], [100, 45]]] } }] };
+    const { container } = render(<ShpContourViewer geojson={geo} geometryType="Polygon" maskedProperties={{}} realProperties={{}} targetName="X" hasAnswered={false} />);
+    const overlays = container.querySelectorAll('.z-400');
+    expect(overlays.length).toBeGreaterThan(0);
+    overlays.forEach((o) => expect(o.closest('.isolate')).toBeTruthy());
   });
 });

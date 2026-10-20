@@ -21,6 +21,28 @@ interface InteractiveMapPinQuestionProps {
   onAnswer: (isCorrect: boolean, distanceKm: number, guessLat: number, guessLng: number) => void;
 }
 
+const fmtCoord = (lat: number, lng: number) =>
+  `${Math.abs(lat).toFixed(3)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(3)}°${lng >= 0 ? 'E' : 'W'}`;
+
+/** Тавьсан цэг: яг товшсон цэгийг (голд) заасан хөндлөн тэмдэг + солбицол. Хуучин 26px-ийн хар дугуй цэгийг халхалдаг байсан */
+const crosshairIcon = (lat: number, lng: number) =>
+  L.divIcon({
+    className: 'pin-crosshair-marker',
+    iconSize: [44, 44],
+    iconAnchor: [22, 22], // тэмдгийн төв нь яг товшсон цэг дээр
+    html: `
+      <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+        <g stroke="#fff" stroke-width="4.5" stroke-linecap="round" fill="none">
+          <circle cx="22" cy="22" r="12"/><path d="M22 3v11M22 30v11M3 22h11M30 22h11"/>
+        </g>
+        <g stroke="#0284c7" stroke-width="2" stroke-linecap="round" fill="rgba(2,132,199,0.14)">
+          <circle cx="22" cy="22" r="12"/><path d="M22 3v11M22 30v11M3 22h11M30 22h11" fill="none"/>
+        </g>
+        <circle cx="22" cy="22" r="3.2" fill="#dc2626" stroke="#fff" stroke-width="1.6"/>
+      </svg>
+      <div class="pin-label" data-testid="pin-label">${fmtCoord(lat, lng)}</div>`,
+  });
+
 export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps> = ({
   question,
   hasAnswered,
@@ -39,6 +61,11 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
   const allowedDistanceKm = pinData?.allowedDistanceKm || (question.category === 'mongolia' ? 55 : 160);
 
   const [playerGuess, setPlayerGuess] = useState<{ lat: number; lng: number } | null>(null);
+  const [hover, setHover] = useState<{ lat: number; lng: number } | null>(null);
+  // click handler нь газрын зургийг үүсгэх үед нэг л удаа холбогддог тул хамгийн сүүлийн төлвийг ref-ээр уншина
+  const hasAnsweredRef = useRef(hasAnswered);
+  hasAnsweredRef.current = hasAnswered;
+  const lastMoveRef = useRef(0);
   const [evaluatedDistanceKm, setEvaluatedDistanceKm] = useState<number | null>(null);
   const [isWithinAllowed, setIsWithinAllowed] = useState<boolean | null>(null);
 
@@ -116,42 +143,31 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
 
     mapInstanceRef.current = map;
 
-    // Handle map click to drop pin
+    // Курсор: цэг тавих горимд хөндлөн дүрстэй (crosshair)
+    if (!hasAnsweredRef.current) map.getContainer().classList.add('pin-crosshair');
+
+    // Хулгана хөдлөх бүрт курсорын яг солбицолыг харуулна (60 мс тутамд)
+    map.on('mousemove', (e: L.LeafletMouseEvent) => {
+      if (hasAnsweredRef.current) return;
+      const now = Date.now();
+      if (now - lastMoveRef.current < 60) return;
+      lastMoveRef.current = now;
+      setHover({ lat: e.latlng.lat, lng: e.latlng.lng });
+    });
+    map.on('mouseout', () => setHover(null));
+
+    // Газрын зураг дээр товшиж цэг тавина (дахин товшвол цэг шилжинэ)
     map.on('click', (e: L.LeafletMouseEvent) => {
-      if (hasAnswered) return;
+      if (hasAnsweredRef.current) return;
 
       const { lat, lng } = e.latlng;
       setPlayerGuess({ lat, lng });
 
       if (guessMarkerRef.current) {
         guessMarkerRef.current.setLatLng([lat, lng]);
+        guessMarkerRef.current.setIcon(crosshairIcon(lat, lng));
       } else {
-        const guessIcon = L.divIcon({
-          className: 'competition-user-pin',
-          html: `
-            <div style="
-              background: #0284c7;
-              color: white;
-              border: 3px solid white;
-              border-radius: 9999px;
-              width: 26px;
-              height: 26px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: 900;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-              font-size: 13px;
-              transform: translate(-50%, -50%);
-            ">
-              📍
-            </div>
-          `,
-          iconSize: [0, 0],
-        });
-
-        const marker = L.marker([lat, lng], { icon: guessIcon }).addTo(map);
-        guessMarkerRef.current = marker;
+        guessMarkerRef.current = L.marker([lat, lng], { icon: crosshairIcon(lat, lng), interactive: false, keyboard: false }).addTo(map);
       }
     });
 
@@ -219,6 +235,9 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
     setEvaluatedDistanceKm(distKm);
     setIsWithinAllowed(isCorrect);
 
+    map.getContainer().classList.remove('pin-crosshair');
+    setHover(null);
+
     // Render True Location Pin 🎯
     const targetIcon = L.divIcon({
       className: 'competition-target-pin',
@@ -236,7 +255,7 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
           display: flex;
           align-items: center;
           gap: 3px;
-          transform: translate(-50%, -50%);
+          transform: translate(-50%, -160%);
         ">
           <span>${isCorrect ? '✅' : '🎯'}</span>
           <span>${targetName}</span>
@@ -245,7 +264,9 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
       iconSize: [0, 0],
     });
 
-    const targetMarker = L.marker([targetLat, targetLng], { icon: targetIcon }).addTo(map);
+    // Бодит байршлыг яг заасан цэг (нэрийн шошго нь түүний дээр байрлана, цэгийг халхлахгүй)
+    L.circleMarker([targetLat, targetLng], { radius: 6, color: '#fff', weight: 3, fillColor: isCorrect ? '#059669' : '#dc2626', fillOpacity: 1, interactive: false }).addTo(map);
+    const targetMarker = L.marker([targetLat, targetLng], { icon: targetIcon, interactive: false }).addTo(map);
     targetMarkerRef.current = targetMarker;
 
     // Draw connection line
@@ -351,7 +372,7 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
       )}
 
       {/* Main Interactive Map Container */}
-      <div className="relative rounded-2xl border border-slate-300 overflow-hidden shadow-md bg-slate-900 h-[340px] sm:h-[400px]">
+      <div className="relative isolate rounded-2xl border border-slate-300 overflow-hidden shadow-md bg-slate-900 h-[340px] sm:h-[400px]">
         <div ref={mapContainerRef} className="h-full w-full" />
 
         {/* Top Label-Free Basemap Switcher */}
@@ -394,6 +415,13 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
           </button>
         </div>
 
+        {/* Курсорын яг байршил: ямар цэг дээр тавихыг мэдэгдэнэ */}
+        {!hasAnswered && hover && (
+          <div className="pointer-events-none absolute bottom-10 left-2.5 z-400 rounded-md border border-white/20 bg-slate-900/85 px-2 py-1 font-mono text-[10px] text-white shadow-sm" data-testid="cursor-coords">
+            ✛ {fmtCoord(hover.lat, hover.lng)}
+          </div>
+        )}
+
         {/* Compass / North Arrow on top right */}
         <div className="absolute top-2.5 right-2.5 z-400 flex items-center gap-1 rounded-lg bg-slate-900/80 border border-white/20 px-2.5 py-1 text-[10px] font-mono text-white shadow-sm backdrop-blur-xs">
           <Compass className="h-3.5 w-3.5 text-amber-400" />
@@ -415,7 +443,7 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
             >
               <MapPin className="h-4 w-4" />
               <span>
-                {playerGuess ? 'Байршлыг баталгаажуулах (Таах)' : 'Газрын зураг дээр товшиж цэг тавина уу'}
+                {playerGuess ? 'Байршлыг баталгаажуулах (Таах)' : 'Газрын зураг дээр товшиж цэг тавина уу (томруулж нарийвчилж болно)'}
               </span>
             </button>
           </div>

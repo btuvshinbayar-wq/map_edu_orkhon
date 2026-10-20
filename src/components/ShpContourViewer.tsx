@@ -388,7 +388,7 @@ export const ShpContourViewer: React.FC<ShpContourViewerProps> = ({
 
       {/* Main Map Canvas Container (With Plain White Contour Map, Satellite, or Grid) */}
       <div
-        className={`relative rounded-2xl border overflow-hidden shadow-inner transition-colors ${
+        className={`relative isolate rounded-2xl border overflow-hidden shadow-inner transition-colors ${
           basemapMode === 'nolabel_dark' || basemapMode === 'nolabel_satellite'
             ? 'border-slate-700 bg-[#0f172a]'
             : 'border-slate-300 bg-white'

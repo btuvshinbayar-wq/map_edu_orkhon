@@ -99,3 +99,39 @@
   color: #0369a1;
   border-radius: 0.25rem;
 }
+
+/* Газрын зургийн дотоод давхарга (Leaflet-ийн z-index 200-1000) өөр цонх, модалын дээр гарахаас сэргийлж тусгаарлана */
+.leaflet-container {
+  isolation: isolate;
+}
+
+/* Цэг байрлуулах даалгавар: курсор нь хөндлөн дүрстэй (crosshair), чирэх үед "grabbing" */
+.pin-crosshair,
+.pin-crosshair .leaflet-grab,
+.pin-crosshair .leaflet-interactive {
+  cursor: crosshair !important;
+}
+.pin-crosshair.leaflet-dragging,
+.pin-crosshair.leaflet-dragging .leaflet-grab {
+  cursor: grabbing !important;
+}
+
+/* Таны тавьсан цэг: яг товшсон байршлыг заасан хөндлөн тэмдэг */
+.pin-crosshair-marker {
+  background: transparent;
+  border: 0;
+}
+.pin-crosshair-marker .pin-label {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 6px);
+  white-space: nowrap;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}

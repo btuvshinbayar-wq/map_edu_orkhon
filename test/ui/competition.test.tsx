@@ -233,3 +233,76 @@ describe('Асуултын тоо, хугацааг админ тохируул�
     expect(a.answers[0].pointsEarned).toBe(13); // 10 × (1 + 0.5 × 10/20) = 12.5 → 13 (20 секундийн түгжигдсэн дүрмээр)
   });
 });
+
+describe('Уралдааны бүрэлдэхүүн: давхарга, төрлөөр хэдийг оруулах', () => {
+  const ring2 = (cx: number, cy: number, r: number) => { const pts = Array.from({ length: 16 }, (_, k) => [cx + r * Math.cos((k / 16) * 6.283), cy + r * Math.sin((k / 16) * 6.283)]); pts.push(pts[0]); return pts; };
+  const pl = (id: string, name: string, off: number) => ({ id, name, visible: true, color: '#000', fillColor: '#000', fillOpacity: 0.3, weight: 2, geometryType: 'Polygon', featureCount: 8, nameField: 'nm', createdAt: '',
+    geojson: { type: 'FeatureCollection', features: Array.from({ length: 8 }, (_, i) => ({ type: 'Feature', properties: { nm: `${name} ${i}` }, geometry: { type: 'Polygon', coordinates: [ring2(90 + off + i * 1.3, 44 + (i % 3) * 0.8, 0.3 + i * 0.02)] } })) } });
+  let bank: any[] = [];
+  beforeEach(() => {
+    saveAttempt.mockClear(); reportLive.mockClear();
+    bank = generateComprehensiveGisQuestions({ layers: [pl('lk', 'Нуур', 0), pl('ai', 'Аймаг', 4)], enabledTypes: ['contour_shape', 'area'], gradeLevels: ['9'], pointsPerQuestion: 10 } as any) as any[];
+    ctx = {
+      currentUser: { id: 'u1', fullName: 'Бат', role: 'student', status: 'approved', isCompetitionConfirmed: true, grade: '9', school: 'S1', aimag: 'A1', studentCode: 'X' },
+      saveAttempt, customQuestions: bank, recordTaskAttempt: vi.fn(), isCompetitionCurrentlyOpen: true, reportLive,
+      competitionSchedule: { mode: 'open', questionsPerAttempt: 10, secondsPerQuestion: 30, speedBonusPercent: 50, categorySettings: { '9': { blueprint: [
+        { id: 'a', layer: 'lk', type: 'contour_shape', count: 2 },
+        { id: 'b', layer: 'ai', type: 'area', count: 1 },
+      ] } } },
+    };
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(t0);
+  });
+  afterEach(() => { vi.useRealTimers(); cleanup(); });
+
+  const answerAll = async (n: number) => {
+    const shown: any[] = [];
+    const bankNow = () => ctx.customQuestions as any[];
+    for (let i = 0; i < n; i++) {
+      const texts = [...document.querySelectorAll('button')].map((b) => (b.textContent || '').trim());
+      const body = document.body.textContent || '';
+      const q = bankNow().find((x) => x.options.every((o: any) => texts.includes(o.text)) && body.includes(x.title) && !shown.includes(x));
+      expect(q, 'дэлгэц дээрх даалгаврыг олсонгүй').toBeTruthy();
+      shown.push(q);
+      await act(async () => { fireEvent.click([...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === q.options.find((o: any) => o.isCorrect).text)!); });
+      await act(async () => { fireEvent.click(finishBtn()!); });
+    }
+    return shown;
+  };
+
+  it('Бүрэлдэхүүн: яг 2 Нуурын контур + 1 Аймгийн талбай (нийт 3) өгч, дүрмийн дэлгэцэд тайлбарлана', async () => {
+    render(<CompetitionModal isOpen onClose={() => {}} overrideGrade={'9' as any} onOpenAuth={() => {}} />);
+    const intro = screen.getByTestId('intro');
+    expect(intro.textContent).toMatch(/3 даалгавар/);
+    const comp = screen.getByTestId('intro-composition').textContent!;
+    expect(comp).toMatch(/Нуур · Хэлбэр дүрсийг таах ×2/);
+    expect(comp).toMatch(/Аймаг · Талбай[^;]* ×1/);
+    await act(async () => { fireEvent.click(startBtn()); });
+    const shown = await answerAll(3);
+    expect(shown.filter((q) => q.shpContourData.layerName === 'Нуур' && q.gisAutoTaskType === 'contour_shape').length).toBe(2);
+    expect(shown.filter((q) => q.shpContourData.layerName === 'Аймаг' && q.gisAutoTaskType === 'area').length).toBe(1);
+    const a = saveAttempt.mock.calls[0][0];
+    expect(a.answers.length).toBe(3);
+    expect(a.maxScore).toBe(45); // 3 × 15
+  });
+
+  it('Оролдлого бүрт бүрэлдэхүүн хэвээр, харин сонгогдох даалгавар санамсаргүй өөр байна', async () => {
+    const seen = new Set<string>();
+    for (let k = 0; k < 6; k++) {
+      const { unmount } = render(<CompetitionModal isOpen onClose={() => {}} overrideGrade={'9' as any} onOpenAuth={() => {}} />);
+      const texts = () => [...document.querySelectorAll('button')].map((b) => (b.textContent || '').trim());
+      expect(screen.getByTestId('intro-composition').textContent).toMatch(/Нуур · Хэлбэр дүрсийг таах ×2/);
+      await act(async () => { fireEvent.click(startBtn()); });
+      const q = bank.find((x) => x.options.every((o: any) => texts().includes(o.text)));
+      seen.add(q.id);
+      unmount();
+    }
+    expect(seen.size).toBeGreaterThan(1); // эхний даалгавар оролдлого бүрд өөр
+  });
+
+  it('Бүрэлдэхүүнд хүрэлцэхгүй даалгавар байвал байгаагаар нь өгч уралдаан эвдрэхгүй', async () => {
+    ctx.competitionSchedule.categorySettings['9'].blueprint = [{ id: 'z', layer: 'lk', type: 'contour_shape', count: 50 }, { id: 'y', layer: 'үгүй', count: 4 }];
+    render(<CompetitionModal isOpen onClose={() => {}} overrideGrade={'9' as any} onOpenAuth={() => {}} />);
+    expect(screen.getByTestId('intro').textContent).toMatch(/8 даалгавар/); // 8 л контур бий
+  });
+});

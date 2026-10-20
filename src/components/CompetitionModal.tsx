@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { pointsForAnswer, maxPointsForQuestion, resolveCompetitionRules, formatDuration, formatMinutes, type CompetitionRules } from '../lib/scoring';
 import { useIntegrity } from '../lib/useIntegrity';
+import { pickByBlueprint, layerLabelOf } from '../lib/blueprint';
+import { typeLabelOf } from '../lib/questionGroups';
 import { normalizeMaxLeaves } from '../lib/integrity';
 import confetti from 'canvas-confetti';
 import {
@@ -111,8 +113,10 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
     );
     // Зөвхөн тухайн ангилалд зориулсан даалгавар. Өөр ангиллын даалгаврыг орлуулж өгөхгүй.
     const pool = matchingCustom;
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    const selectedQuestions = shuffled.slice(0, Math.min(liveRules.questionCount, shuffled.length));
+    // Админ бүрэлдэхүүн (давхарга, төрлөөр) тогтоосон бол түүгээр, үгүй бол санамсаргүй
+    const selectedQuestions = liveRules.blueprint
+      ? pickByBlueprint(pool, liveRules.blueprint, { shuffleOrder: liveRules.shuffleBlueprint }).picked
+      : [...pool].sort(() => Math.random() - 0.5).slice(0, Math.min(liveRules.questionCount, pool.length));
 
     setQuestions(selectedQuestions);
     setCurrentIndex(0);
@@ -135,7 +139,7 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
       finishedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, selectedGrade, customQuestions.length, liveRules.questionCount]);
+  }, [isOpen, selectedGrade, customQuestions.length, liveRules.questionCount, JSON.stringify(liveRules.blueprint ?? null)]);
 
   // Цонх солилт: уралдаан эхэлсэн, дуусаагүй хугацаанд л хянана
   const integrity = useIntegrity({
@@ -594,6 +598,19 @@ export const CompetitionModal: React.FC<CompetitionModalProps> = ({
               🖥 Уралдаан <strong>бүтэн дэлгэцээр</strong> явагдана. Эхэлсний дараа өөр цонх, таб, апп руу шилжихэд хугацаа <strong>зогсохгүй</strong> бөгөөд
               шилжсэн бүх тохиолдол админд шууд харагдаж бүртгэгдэнэ.
             </li>
+            {liveRules.blueprint && (
+              <li data-testid="intro-composition">
+                🧩 Бүрэлдэхүүн:{' '}
+                {Array.from(
+                  questions.reduce((m, q) => {
+                    const k = `${layerLabelOf(q)} · ${typeLabelOf(q)}`;
+                    return m.set(k, (m.get(k) ?? 0) + 1);
+                  }, new Map<string, number>()),
+                )
+                  .map(([k, n]) => `${k} ×${n}`)
+                  .join('; ')}
+              </li>
+            )}
             {maxLeaves > 0 && (
               <li className="font-semibold text-rose-700">
                 ⛔ Цонх {maxLeaves} удаагаас илүү сольвол уралдаан автоматаар дуусна.

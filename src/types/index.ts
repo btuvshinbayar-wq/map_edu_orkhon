@@ -391,7 +391,7 @@ export interface CompetitionScheduleConfig {
   /** Нэг оролдлогод өгөх асуултын тоо (анхдагч 10) */
   questionsPerAttempt?: number;
   /** Ангилал тус бүрийн тусгай тохиргоо (хоосон бол нийтийн тохиргоог хэрэглэнэ) */
-  categorySettings?: Partial<Record<'9' | '12' | 'teacher' | 'team', { questionCount?: number; secondsPerQuestion?: number }>>;
+  categorySettings?: Partial<Record<'9' | '12' | 'teacher' | 'team', { questionCount?: number; secondsPerQuestion?: number; blueprint?: BlueprintRule[]; shuffleBlueprint?: boolean }>>;
   /** Цонх сольж болох дээд тоо. Давбал уралдаан автоматаар дуусна. 0 = зөвхөн бүртгэнэ (анхдагч) */
   maxWindowLeaves?: number;
   announcementNote?: string;
@@ -452,4 +452,15 @@ export interface IntegrityReport {
   blockedActions: number;
   terminated: boolean;
   terminatedReason?: 'limit' | 'abandoned';
+}
+
+
+/** Уралдааны бүрэлдэхүүний нэг мөр: тухайн давхарга, даалгаврын төрлөөс хэдийг оруулах */
+export interface BlueprintRule {
+  id: string;
+  /** Давхаргын түлхүүр (давхаргын ID эсвэл `name:<нэр>`). Хоосон = аль ч давхарга */
+  layer?: string;
+  /** Даалгаврын төрөл (contour_shape, area гэх мэт). Хоосон = аль ч төрөл */
+  type?: string;
+  count: number;
 }

@@ -36,8 +36,12 @@ export const unpackQuestions = (packs: { items: QuestionLike[] }[]): QuestionLik
   packs.flatMap((p) => p.items);
 
 /** Асуултын харьяалагдах давхаргын ID (featureId нь `${layerId}_f_${index}` хэлбэртэй) */
-export const layerIdFromFeatureId = (fid?: string): string | null =>
-  fid && fid.includes('_f_') ? fid.split('_f_')[0] : null;
+// Даалгаврын төрөл бүр featureId-аа өөр дагавартай бичдэг: _f_ (контур), _area_, _nb_ (хөрш), _pin_ (цэг), _asm_ (эвлүүлэх), _name_
+const FEATURE_ID_RE = /^(.+)_(?:f|area|nb|pin|asm|name)_\d+$/;
+export const layerIdFromFeatureId = (fid?: string): string | null => {
+  const m = fid ? FEATURE_ID_RE.exec(fid) : null;
+  return m ? m[1] : null;
+};
 
 const rename = (t: unknown, from: string, to: string) =>
   typeof t === 'string' && from ? t.split(from).join(to) : t;

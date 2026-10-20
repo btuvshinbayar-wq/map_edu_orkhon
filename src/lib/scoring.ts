@@ -64,7 +64,16 @@ export const CATEGORY_LABEL: Record<CategoryId, string> = { '9': '9-р анги'
 
 export const DEFAULT_QUESTION_COUNT = 10;
 
-export interface CategoryRuleOverride { questionCount?: number; secondsPerQuestion?: number }
+import type { BlueprintRule } from '../types';
+
+export interface CategoryRuleOverride {
+  questionCount?: number;
+  secondsPerQuestion?: number;
+  /** Давхарга, төрлөөр тогтоосон бүрэлдэхүүн. Байвал асуултын тоо нь мөрүүдийн нийлбэр болно */
+  blueprint?: BlueprintRule[];
+  /** Сонгосон даалгаврыг холих эсэх (анхдагч: холино) */
+  shuffleBlueprint?: boolean;
+}
 
 export interface RulesConfigLike {
   questionsPerAttempt?: number;
@@ -78,6 +87,9 @@ export interface CompetitionRules {
   questionCount: number;
   secondsPerQuestion: number;
   speedBonusPercent: number;
+  /** Бүрэлдэхүүн (давхарга, төрлөөр) тогтоосон бол тэр мөрүүд, үгүй бол undefined (санамсаргүй сонголт) */
+  blueprint?: BlueprintRule[];
+  shuffleBlueprint?: boolean;
 }
 
 export const normalizeQuestionCount = (v: unknown, fallback = DEFAULT_QUESTION_COUNT): number => {
@@ -94,12 +106,16 @@ export function resolveCompetitionRules(cfg: RulesConfigLike | null | undefined,
   const base = normalizeScoring(cfg);
   const baseCount = normalizeQuestionCount(cfg?.questionsPerAttempt);
   const o = (cfg?.categorySettings ?? {})[grade as CategoryId];
+  const bp = (o?.blueprint ?? []).filter((r) => Math.round(Number(r.count)) > 0).map((r) => ({ ...r, count: Math.min(100, Math.round(Number(r.count))) }));
+  const bpTotal = bp.reduce((a, r) => a + r.count, 0);
   return {
-    questionCount: hasValue(o?.questionCount) ? normalizeQuestionCount(o!.questionCount, baseCount) : baseCount,
+    // Бүрэлдэхүүн тогтоосон бол асуултын тоо = мөрүүдийн нийлбэр
+    questionCount: bp.length > 0 ? normalizeQuestionCount(bpTotal) : hasValue(o?.questionCount) ? normalizeQuestionCount(o!.questionCount, baseCount) : baseCount,
     secondsPerQuestion: hasValue(o?.secondsPerQuestion)
       ? normalizeScoring({ ...cfg, secondsPerQuestion: o!.secondsPerQuestion }).secondsPerQuestion
       : base.secondsPerQuestion,
     speedBonusPercent: base.speedBonusPercent,
+    ...(bp.length > 0 ? { blueprint: bp, shuffleBlueprint: o?.shuffleBlueprint !== false } : {}),
   };
 }
 
