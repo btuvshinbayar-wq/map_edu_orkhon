@@ -174,3 +174,66 @@ describe('Контур харуулагч: тэмдэглэгээнүүд мод
     overlays.forEach((o) => expect(o.closest('.isolate')).toBeTruthy());
   });
 });
+
+import { calculateHaversineDistanceKm } from '../../src/utils/geo';
+describe('Цэг байрлуулах: дараалсан даалгавар бүр дээр тавьсан цэг, шугам тэмдэглэгдэнэ', () => {
+  it('1-р, 2-р, 3-р даалгавар бүр дээр цэг тавигдаж, баталгаажуулахад зөв зайгаар шугам зурагдана (өмнөх даалгаврын төлөв дамжихгүй)', async () => {
+    const qs = generateComprehensiveGisQuestions({ layers: [layer], enabledTypes: ['point_placement'] } as any) as any[];
+    const [q1, q2, q3] = qs;
+    const maps: L.Map[] = [];
+    const origMap = L.map;
+    const mapSpy = vi.spyOn(L, 'map').mockImplementation(((...a: any[]) => { const m = (origMap as any)(...a); maps.push(m); return m; }) as any);
+    const lineSpy = vi.spyOn(L, 'polyline');
+    const dotSpy = vi.spyOn(L, 'circleMarker');
+    const onAnswer = vi.fn();
+    const { container, rerender } = render(<InteractiveMapPinQuestion question={q1} hasAnswered={false} onAnswer={onAnswer} />);
+    const confirmBtn = () => Array.from(container.querySelectorAll('button')).find((b) => /баталгаажуул|Газрын зураг дээр товшиж/i.test(b.textContent || ''))!;
+
+    const play = async (q: any, idx: number, offset: [number, number]) => {
+      const t = q.mapPinData;
+      // Шинэ даалгавар: өмнөх цэг, шугам үлдээгүй, "баталгаажуулах" идэвхгүй (хуучин таамаг хүчингүй)
+      expect(container.querySelectorAll('.pin-crosshair-marker').length).toBe(0);
+      expect(confirmBtn().textContent).toMatch(/Газрын зураг дээр товшиж цэг тавина уу/);
+      const guess = { lat: t.targetLat + offset[0], lng: t.targetLng + offset[1] };
+      act(() => { maps[idx].fire('click', { latlng: L.latLng(guess.lat, guess.lng) }); });
+      // ЦЭГ ТЭМДЭГЛЭГДСЭН: хөндлөн тэмдэг + яг товшсон солбицол
+      expect(container.querySelectorAll('.pin-crosshair-marker').length).toBe(1);
+      expect(screen.getByTestId('pin-label').textContent).toBe(`${guess.lat.toFixed(3)}°N, ${guess.lng.toFixed(3)}°E`);
+      act(() => { fireEvent.click(confirmBtn()); });
+      // Шугам (тасархай) болон бодит байршил энэ даалгаврын газрын зураг дээр зурагдсан
+      expect(lineSpy).toHaveBeenLastCalledWith([[guess.lat, guess.lng], [t.targetLat, t.targetLng]], expect.objectContaining({ dashArray: '6, 6' }));
+      expect(dotSpy).toHaveBeenLastCalledWith([t.targetLat, t.targetLng], expect.objectContaining({ radius: 6 }));
+      const [ok, dist, gLat, gLng] = onAnswer.mock.calls.at(-1)!;
+      expect(gLat).toBeCloseTo(guess.lat, 6); expect(gLng).toBeCloseTo(guess.lng, 6); // өмнөх даалгаврын таамаг биш
+      expect(dist).toBeCloseTo(calculateHaversineDistanceKm(guess.lat, guess.lng, t.targetLat, t.targetLng), 3);
+      return ok;
+    };
+
+    expect(await play(q1, 0, [0.04, 0])).toBe(true);
+    // 2-р даалгавар (parent шинэ question + hasAnswered=false дамжуулна)
+    rerender(<InteractiveMapPinQuestion question={q2} hasAnswered={false} onAnswer={onAnswer} />);
+    expect(maps.length).toBe(2);
+    expect(await play(q2, 1, [3, 3])).toBe(false);
+    rerender(<InteractiveMapPinQuestion question={q3} hasAnswered={false} onAnswer={onAnswer} />);
+    expect(maps.length).toBe(3);
+    expect(await play(q3, 2, [0, 0.03])).toBe(true);
+    expect(onAnswer).toHaveBeenCalledTimes(3);
+    expect(lineSpy).toHaveBeenCalledTimes(3);
+    mapSpy.mockRestore(); lineSpy.mockRestore(); dotSpy.mockRestore();
+  });
+
+  it('Таамаглалгүйгээр шинэ даалгавар дээр баталгаажуулж чадахгүй: өмнөх даалгаврын таамаг ашиглагдахгүй', () => {
+    const qs = generateComprehensiveGisQuestions({ layers: [layer], enabledTypes: ['point_placement'] } as any) as any[];
+    const maps: L.Map[] = [];
+    const origMap = L.map;
+    const spy = vi.spyOn(L, 'map').mockImplementation(((...a: any[]) => { const m = (origMap as any)(...a); maps.push(m); return m; }) as any);
+    const onAnswer = vi.fn();
+    const { container, rerender } = render(<InteractiveMapPinQuestion question={qs[0]} hasAnswered={false} onAnswer={onAnswer} />);
+    act(() => { maps[0].fire('click', { latlng: L.latLng(qs[0].mapPinData.targetLat, qs[0].mapPinData.targetLng) }); });
+    rerender(<InteractiveMapPinQuestion question={qs[1]} hasAnswered={false} onAnswer={onAnswer} />);
+    spy.mockRestore();
+    expect(container.querySelectorAll('.pin-crosshair-marker').length).toBe(0);
+    const btn = Array.from(container.querySelectorAll('button')).find((b) => /Газрын зураг дээр товшиж|баталгаажуул/i.test(b.textContent || ''))!;
+    expect(btn.textContent).not.toMatch(/баталгаажуулах/); // цэг тавиагүй
+  });
+});

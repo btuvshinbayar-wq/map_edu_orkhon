@@ -101,6 +101,17 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
+    // Шинэ даалгавар: өмнөх даалгаврын цэг, зай, тэмдэглэгээг ЦЭВЭРЛЭНЭ.
+    // (Өмнө нь өмнөх газрын зургийн устсан marker-ийг дахин хэрэглэдэг байсан тул 2-р даалгавраас цэг харагдахгүй,
+    //  мөн өмнөх даалгаврын таамаг шинэ даалгаварт тооцогддог байсан)
+    guessMarkerRef.current = null;
+    targetMarkerRef.current = null;
+    polylineRef.current = null;
+    setPlayerGuess(null);
+    setEvaluatedDistanceKm(null);
+    setIsWithinAllowed(null);
+    setHover(null);
+
     const initialCenter: [number, number] =
       question.category === 'mongolia' ? [46.86, 103.84] : [30.0, 20.0];
     const initialZoom = question.category === 'mongolia' ? 5 : 2;
@@ -178,6 +189,9 @@ export const InteractiveMapPinQuestion: React.FC<InteractiveMapPinQuestionProps>
     return () => {
       map.remove();
       mapInstanceRef.current = null;
+      guessMarkerRef.current = null;
+      targetMarkerRef.current = null;
+      polylineRef.current = null;
     };
   }, [question.id]);
 
