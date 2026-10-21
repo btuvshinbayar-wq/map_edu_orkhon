@@ -144,3 +144,26 @@ assert(fr.title === areaQs[0].title || !areaQs[0].title.includes('километ
 // ---- Дотоод тооцооллын талбар (_areaKm2, _lengthKm) асуултад цухуйх ёсгүй ----
 const leaked = (all as any[]).filter((q) => /_areaKm2|_lengthKm/.test(JSON.stringify(q)));
 assert(leaked.length === 0, `дотоод _areaKm2/_lengthKm талбар ${all.length} даалгаврын аль нэгэнд ч цухуйгаагүй (${leaked.length})`);
+
+// ====== 30-аас олон обьект: бүх обьектоор даалгавар үүсгэнэ ======
+const bigRing = (cx: number, cy: number, r: number) => { const pts = Array.from({ length: 12 }, (_, k) => [cx + r * Math.cos((k / 12) * 6.283), cy + r * Math.sin((k / 12) * 6.283)]); pts.push(pts[0]); return pts; };
+const bigLayer = (n: number): any => ({
+  id: 'big', name: 'Сум', visible: true, color: '#000', fillColor: '#000', fillOpacity: 0.3, weight: 2, geometryType: 'Polygon', featureCount: n, nameField: 'nm', createdAt: '',
+  geojson: { type: 'FeatureCollection', features: Array.from({ length: n }, (_, i) => ({ type: 'Feature', properties: { nm: `Сум ${i}` }, geometry: { type: 'Polygon', coordinates: [bigRing(88 + (i % 40) * 0.6, 42 + Math.floor(i / 40) * 0.6, 0.1 + (i % 7) * 0.01)] } })) },
+});
+const bq = (types: string[], n: number, extra: any = {}) => generateComprehensiveGisQuestions({ layers: [bigLayer(n)], enabledTypes: types, ...extra } as any) as any[];
+for (const [type, label] of [['contour_shape', 'хэлбэр дүрс таах'], ['name_by_attribute', 'нэр тодорхойлох'], ['area', 'талбай'], ['point_placement', 'цэг байрлуулах']] as const) {
+  const out = bq([type], 100);
+  assert(out.length === 100, `${label}: 100 обьектоос ${out.length} даалгавар (өмнө 30 хүрдэг байсан)`);
+  assert(new Set(out.map((q) => q.shpContourData.featureId)).size === 100, `${label}: 100 өөр обьект бүгд орсон (давхардалгүй)`);
+}
+const nb = bq(['neighbor'], 100);
+assert(nb.length > 30, `хөрш: 100 обьектоос ${nb.length} даалгавар (>30)`);
+const asm100 = bq(['assemble'], 100), asm10 = bq(['assemble'], 10);
+assert(asm100.length === 25 && asm10.length === 5, `эвлүүлэх: обьектийн тоонд уялдана (100 → ${asm100.length}, 10 → ${asm10.length}; өмнө дандаа дээд тал нь 6)`);
+assert(bq(['contour_shape'], 20).length === 20, 'цөөн обьекттой давхарга хэвээр (20 → 20)');
+assert(bq(['contour_shape'], 100, { maxQuestionsPerLayer: 40 }).length === 40, 'хэрэв заавал хязгаарлавал maxQuestionsPerLayer үйлчилнэ');
+const huge = bq(['contour_shape'], 1500);
+const idx = huge.map((q) => Number(q.shpContourData.featureId.split('_f_')[1]));
+assert(huge.length === 1000 && Math.max(...idx) > 1000, `1500 обьекттой давхарга: 1000-аар хязгаарлаж, ЭХНИЙ 1000 биш санамсаргүй сонгосон (хамгийн их индекс ${Math.max(...idx)})`);
+assert(bq(['contour_shape'], 1500, { maxFeaturesPerLayer: 1500 }).length === 1500, 'maxFeaturesPerLayer-ээр хязгаарыг өөрчилж болно');

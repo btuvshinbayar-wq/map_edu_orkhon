@@ -19,6 +19,7 @@ export const QuestionBankEditor: React.FC = () => {
   const [editing, setEditing] = useState<Question | null>(null);
 
   const groups = useMemo(() => groupQuestions(customQuestions), [customQuestions]);
+  const bankMb = useMemo(() => JSON.stringify(customQuestions).length / (1024 * 1024), [customQuestions]);
   const layers = useMemo(() => Array.from(new Set(customQuestions.map(layerNameOf))).sort(), [customQuestions]);
   const types = useMemo(() => Array.from(new Set(customQuestions.map(typeLabelOf))).sort(), [customQuestions]);
 
@@ -46,7 +47,10 @@ export const QuestionBankEditor: React.FC = () => {
         <div className="flex items-center gap-2">
           <Pencil className="h-4 w-4 text-violet-700" />
           <h3 className="text-sm font-black text-slate-900">Даалгавар засах (олноор)</h3>
-          <span className="text-xs text-slate-500">Нийт {customQuestions.length} даалгавар</span>
+          <span className="text-xs text-slate-500">
+            Нийт {customQuestions.length} даалгавар · сангийн хэмжээ ≈ {bankMb.toFixed(1)} MB
+            {bankMb > 10 && <strong className="ml-1 text-amber-700">(том: сурагч бүр нэг удаа татна)</strong>}
+          </span>
         </div>
         <p className="text-xs leading-relaxed text-slate-600">
           Нэг төрлийн, нэг давхаргын даалгаврын асуулт ижил загвартай. Бүлгийг сонгоод асуултыг <strong>нэг удаа</strong> засахад бүх даалгавар өөр

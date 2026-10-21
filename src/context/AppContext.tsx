@@ -582,7 +582,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const autoGenerateQuestionsFromGisLayers: AppContextType['autoGenerateQuestionsFromGisLayers'] = (opts) => {
     const generated = generateComprehensiveGisQuestions({
-      layers: gisLayers, selectedLayerIds: opts?.layerIds, enabledTypes: opts?.taskTypes, maxQuestionsPerLayer: opts?.maxPerLayer ?? 54,
+      layers: gisLayers, selectedLayerIds: opts?.layerIds, enabledTypes: opts?.taskTypes, maxQuestionsPerLayer: opts?.maxPerLayer,
     });
     if (generated.length === 0) return 0;
     if (opts?.replaceExisting) mutateQuestions(() => generated);

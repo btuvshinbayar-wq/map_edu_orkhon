@@ -511,7 +511,6 @@ export const GisContourQuestionGenerator: React.FC = () => {
                     enabledTypes: [t],
                     gradeLevels: selectedGrades,
                     pointsPerQuestion: questionPoints,
-                    maxQuestionsPerLayer: Math.max(20, filteredFeatures.length),
                   }),
                 }));
                 const batchQuestions = perType.flatMap((x) => x.n);

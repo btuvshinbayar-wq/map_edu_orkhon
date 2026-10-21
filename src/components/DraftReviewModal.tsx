@@ -28,6 +28,9 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
   const [open, setOpen] = useState<string | null>(null);
   const [bulkGroup, setBulkGroup] = useState<string>('');
   const [showBulk, setShowBulk] = useState(initial.length > 3);
+  // Олон (100+) даалгавар үүсэхэд бүгдийг нэг дор зурж удаашруулахгүйн тулд 30-аар хуудаслана. Хадгалахад бүгд (нуугдсан ч) орно
+  const PAGE = 30;
+  const [visible, setVisible] = useState(PAGE);
 
   const update = (id: string, fn: (q: Question) => Question) =>
     setItems((prev) => prev.map((q) => (q.id === id ? fn(q) : q)));
@@ -53,6 +56,8 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
     }
     return m;
   }, [selected]);
+
+  const sizeKb = useMemo(() => Math.round(JSON.stringify(selected).length / 1024), [selected]);
 
   const summary = useMemo(() => {
     const m = new Map<string, number>();
@@ -98,6 +103,7 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
               {label}: {n}
             </span>
           ))}
+          <span className="rounded-md bg-white border border-slate-200 px-1.5 py-0.5" title="Санд нэмэхэд хэр зайтай болох">≈ {sizeKb >= 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`}</span>
           <span className="ml-auto flex gap-2">
             <button type="button" className="font-semibold text-sky-700 hover:underline cursor-pointer" onClick={() => setKeep(new Set(items.map((q) => q.id)))}>
               Бүгдийг сонгох
@@ -145,7 +151,7 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
         )}
 
         <div className="flex-1 space-y-2 overflow-y-auto p-3">
-          {items.map((q, i) => {
+          {items.slice(0, visible).map((q, i) => {
             const on = keep.has(q.id);
             const tl = typeLabel(q);
             const problem = on ? problems.get(q.id) : undefined;
@@ -290,6 +296,25 @@ export const DraftReviewModal: React.FC<Props> = ({ title, initial, onConfirm, o
               </div>
             );
           })}
+          {items.length > visible && (
+            <div className="flex flex-wrap items-center justify-center gap-2 py-2 text-xs">
+              <span className="text-slate-500">
+                {visible} / {items.length} даалгавар харагдаж байна (бусад нь ч хадгалагдана)
+              </span>
+              <button type="button" onClick={() => setVisible((v) => v + PAGE)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                Цааш харуулах (+{Math.min(PAGE, items.length - visible)})
+              </button>
+              <button type="button" onClick={() => setVisible(items.length)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                Бүгдийг харуулах
+              </button>
+            </div>
+          )}
+          {sizeKb > 5 * 1024 && (
+            <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-900">
+              Анхаар: энэ багц {(sizeKb / 1024).toFixed(1)} MB. Асуултын санг сурагч бүр нэг удаа татдаг тул хэт том сан эхний ачааллыг удаашруулна.
+              Шаардлагагүй төрөл, обьектийг хасаж болно.
+            </p>
+          )}
           {items.length === 0 && <p className="py-10 text-center text-slate-500">Бүх даалгаврыг хаслаа. Цуцалж буцна уу.</p>}
         </div>
 

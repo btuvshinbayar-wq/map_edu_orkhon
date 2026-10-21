@@ -54,3 +54,36 @@ describe('Даалгавар бэлтгэгч: давхардсан товчну
     expect(saved.every((q: any) => Array.isArray(q.gradeLevels) && q.gradeLevels.length === 0)).toBe(true); // ангилалгүй: зөвхөн Сорил
   });
 });
+
+describe('Даалгавар бэлтгэгч: 30-аас олон обьект', () => {
+  it('45 обьекттой давхаргаас 45 даалгавар үүсч, шалгах цонх 30-аар хуудаслаж, санд бүгд нэмэгдэнэ', async () => {
+    layers = [{
+      id: 'sum', name: 'Сум', visible: true, color: '#000', fillColor: '#000', fillOpacity: 0.5, weight: 2, geometryType: 'Polygon', featureCount: 45, nameField: 'nm', createdAt: '',
+      geojson: { type: 'FeatureCollection', features: Array.from({ length: 45 }, (_, i) => ({ type: 'Feature', properties: { nm: `Сум ${i}` }, geometry: { type: 'Polygon', coordinates: [ring(95 + (i % 15) * 0.8, 45 + Math.floor(i / 15) * 0.8, 0.2 + (i % 5) * 0.02)] } })) },
+    }];
+    render(<GisContourQuestionGenerator />);
+    fireEvent.click(screen.getByRole('button', { name: /45 обьектоор, 1 төрлөөр олноор үүсгэх/ }));
+    expect(screen.getByText(/45 \/ 45 даалгавар сонгосон/)).toBeTruthy(); // 30 биш 45
+    expect(document.querySelectorAll('textarea[aria-label="Асуултын текст"]').length).toBe(30); // эхний хуудас
+    expect(screen.getByText(/30 \/ 45 даалгавар харагдаж байна/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Цааш харуулах \(\+15\)/ }));
+    expect(document.querySelectorAll('textarea[aria-label="Асуултын текст"]').length).toBe(45);
+    expect(screen.queryByText(/харагдаж байна/)).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Санд нэмэх \(45\)/ })); });
+    expect(batchAddCustomQuestions.mock.calls.at(-1)![0].length).toBe(45);
+  });
+
+  it('Хуудасласан үед нуугдсан даалгавар ч санд орно (харагдахгүй байсан ч)', async () => {
+    layers = [{
+      id: 'sum', name: 'Сум', visible: true, color: '#000', fillColor: '#000', fillOpacity: 0.5, weight: 2, geometryType: 'Polygon', featureCount: 80, nameField: 'nm', createdAt: '',
+      geojson: { type: 'FeatureCollection', features: Array.from({ length: 80 }, (_, i) => ({ type: 'Feature', properties: { nm: `Сум ${i}` }, geometry: { type: 'Polygon', coordinates: [ring(95 + (i % 20) * 0.7, 45 + Math.floor(i / 20) * 0.8, 0.2 + (i % 5) * 0.02)] } })) },
+    }];
+    render(<GisContourQuestionGenerator />);
+    fireEvent.click(screen.getByRole('button', { name: /80 обьектоор, 1 төрлөөр олноор үүсгэх/ }));
+    expect(document.querySelectorAll('textarea[aria-label="Асуултын текст"]').length).toBe(30);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Санд нэмэх \(80\)/ })); });
+    const saved = batchAddCustomQuestions.mock.calls.at(-1)![0];
+    expect(saved.length).toBe(80);
+    expect(new Set(saved.map((q: any) => q.shpContourData.featureId)).size).toBe(80);
+  });
+});

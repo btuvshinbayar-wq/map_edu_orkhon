@@ -32,8 +32,17 @@ export interface GisAutoGenerateOptions {
   enabledTypes?: GisAutoTaskType[]; // If empty/undefined, use all 9 types
   gradeLevels?: GradeLevel[];
   pointsPerQuestion?: number;
+  /** Давхарга тутмын нийт даалгаврын дээд хязгаар. Заагаагүй бол хязгааргүй (бүх обьектоор үүсгэнэ) */
   maxQuestionsPerLayer?: number;
+  /**
+   * Нэг давхаргаас авах обьектийн дээд тоо (санах ой, хэмжээ хамгаалах). Анхдагч 1000.
+   * Үүнээс олон обьекттой бол ЭХНИЙ нь биш санамсаргүйгээр сонгоно.
+   */
+  maxFeaturesPerLayer?: number;
 }
+
+/** Нэг давхаргаас үүсгэх обьектийн анхдагч дээд хязгаар (хуучин 30 байсан) */
+export const DEFAULT_MAX_FEATURES_PER_LAYER = 1000;
 
 export const GIS_AUTO_TASK_TYPE_LABELS: {
   id: GisAutoTaskType;
@@ -269,7 +278,8 @@ export function generateComprehensiveGisQuestions(
     enabledTypes,
     gradeLevels = [],
     pointsPerQuestion = 15,
-    maxQuestionsPerLayer = 60,
+    maxQuestionsPerLayer = Number.POSITIVE_INFINITY,
+    maxFeaturesPerLayer = DEFAULT_MAX_FEATURES_PER_LAYER,
   } = options;
 
   if (!Array.isArray(layers) || layers.length === 0) return [];
@@ -324,8 +334,12 @@ export function generateComprehensiveGisQuestions(
     const allNames = Array.from(new Set(enriched.map((e) => e.name)));
     const layerQuestions: Question[] = [];
 
-    // Sample features so we don't explode memory if a shapefile has 500+ features
-    const sampledFeatures = enriched.slice(0, Math.min(enriched.length, 30));
+    // Бүх обьектоор даалгавар үүсгэнэ. Хэт том (maxFeaturesPerLayer-ээс олон) давхаргаас л санамсаргүй түүвэрлэнэ.
+    // (Өмнө нь ЭХНИЙ 30 обьектийг л авдаг байсан тул 30-аас олон даалгавар үүсгэх боломжгүй байв)
+    const sampledFeatures =
+      enriched.length > maxFeaturesPerLayer
+        ? [...enriched].sort(() => Math.random() - 0.5).slice(0, maxFeaturesPerLayer)
+        : enriched;
 
     for (let i = 0; i < sampledFeatures.length; i++) {
       const item = sampledFeatures[i];
@@ -620,7 +634,8 @@ export function generateComprehensiveGisQuestions(
     if (activeTypes.has('assemble') && enriched.length >= 4) {
       const withCenters = enriched.filter((e) => e.center !== null);
       // Create multi-object spatial assembly tasks (West-to-East, North-to-South, Largest-to-Smallest)
-      const groupCount = Math.min(6, Math.floor(withCenters.length / 2));
+      // Обьектийн тоонд уялдуулна: 4 обьект тутамд 1 даалгавар (доод тал нь 6, дээд тал нь 100)
+      const groupCount = Math.min(100, Math.max(Math.min(6, Math.floor(withCenters.length / 2)), Math.floor(withCenters.length / 4)));
       for (let g = 0; g < groupCount; g++) {
         const slice = [...withCenters]
           .sort(() => Math.random() - 0.5)
